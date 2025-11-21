@@ -2,6 +2,7 @@
 import { computed, inject, ref } from 'vue';
 import { gameInstance } from '../core/game';
 import { BUILDINGS_BLUEPRINT } from '../data/blueprints';
+import { GAME_VERSION } from '../data/changelog';
 
 // Update to use state.townMoney (原始游戏使用 townMoney 而不是 resources)
 const townMoney = computed(() => gameInstance.state.townMoney);
@@ -55,10 +56,15 @@ const handleCreateCharacter = () => {
 // 关系谱相关
 const emit = defineEmits<{
   (e: 'show-relationship-tree'): void;
+  (e: 'show-changelog'): void;
 }>();
 
 const handleShowRelationshipTree = () => {
   emit('show-relationship-tree');
+};
+
+const handleShowChangelog = () => {
+  emit('show-changelog');
 };
 
 const build = (id: string) => {
@@ -86,6 +92,10 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
       <div class="res-item">
         <span class="res-name">🕒 时间:</span>
         <span class="res-value">{{ gameInstance.formatTime(gameInstance.state.gameTime) }}</span>
+      </div>
+      <div class="res-item version-item" @click="handleShowChangelog" title="查看更新日志">
+        <span class="res-name">版本:</span>
+        <span class="res-value version-value">v{{ GAME_VERSION }}</span>
       </div>
     </div>
     <div class="actions">
@@ -125,6 +135,7 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
         <button @click="handleImportSave" class="btn-import">📤 导入</button>
         <button @click="handleCreateCharacter" class="btn-add-char" title="添加新角色">➕ 添加角色</button>
         <button @click="handleShowRelationshipTree" class="btn-relationship" title="查看关系谱">👥 关系谱</button>
+        <button @click="handleShowChangelog" class="btn-changelog" title="查看更新日志">📋 更新日志</button>
         <button @click="handleReset" class="btn-reset" title="重置游戏到初始状态">🗑 重置</button>
         <input 
           ref="importFileInput"
@@ -211,6 +222,25 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
 
 :global(.dark-mode) .res-value {
   color: #ffffff;
+}
+
+.version-item {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.version-item:hover {
+  opacity: 0.8;
+}
+
+.version-value {
+  color: #667eea !important;
+  font-weight: 700;
+  transition: color 0.3s ease;
+}
+
+:global(.dark-mode) .version-value {
+  color: #8b7ef0 !important;
 }
 
 .actions {
@@ -456,5 +486,15 @@ button:active {
 
 .btn-relationship:hover {
   background: #7d3c98 !important;
+}
+
+.btn-changelog {
+  background: #667eea !important;
+  color: white !important;
+  border-color: #5568d3 !important;
+}
+
+.btn-changelog:hover {
+  background: #5568d3 !important;
 }
 </style>

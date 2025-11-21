@@ -11,6 +11,7 @@ import BuildingProfile from './BuildingProfile.vue';
 import RelationshipTree from './RelationshipTree.vue';
 import RelationshipNetwork from './RelationshipNetwork.vue';
 import RelationshipLoveMatrix from './RelationshipLoveMatrix.vue';
+import ChangelogModal from './ChangelogModal.vue';
 import type { Building } from '../core/building';
 
 // 直接解构 state 以便在模板使用
@@ -52,6 +53,9 @@ const showRelationshipTree = ref(false);
 const showRelationshipNetwork = ref(false);
 const showLoveMatrix = ref(false);
 
+// 更新日志模态框状态
+const showChangelog = ref(false);
+
 const openRelationshipTree = () => {
   showRelationshipTree.value = true;
 };
@@ -74,6 +78,14 @@ const closeLoveMatrix = () => {
 
 const openLoveMatrix = () => {
   showLoveMatrix.value = true;
+};
+
+const openChangelog = () => {
+  showChangelog.value = true;
+};
+
+const closeChangelog = () => {
+  showChangelog.value = false;
 };
 
 // 更新主题类名
@@ -137,7 +149,11 @@ provide('toggleDarkMode', toggleDarkMode);
 
 <template>
   <div class="game-wrapper" :class="{ 'dark-mode': isDarkMode }">
-    <ControlPanel @toggle-dark="toggleDarkMode" @show-relationship-tree="openRelationshipTree" />
+    <ControlPanel 
+      @toggle-dark="toggleDarkMode" 
+      @show-relationship-tree="openRelationshipTree"
+      @show-changelog="openChangelog"
+    />
 
     <div class="game-content">
       <div class="section residents-section">
@@ -194,6 +210,11 @@ provide('toggleDarkMode', toggleDarkMode);
     <RelationshipLoveMatrix 
       :visible="showLoveMatrix"
       @close="closeLoveMatrix"
+    />
+    
+    <ChangelogModal 
+      :visible="showChangelog"
+      @close="closeChangelog"
     />
   </div>
 </template>
