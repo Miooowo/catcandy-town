@@ -57,6 +57,7 @@ const handleCreateCharacter = () => {
 const emit = defineEmits<{
   (e: 'show-relationship-tree'): void;
   (e: 'show-changelog'): void;
+  (e: 'show-customization'): void;
 }>();
 
 const handleShowRelationshipTree = () => {
@@ -65,6 +66,10 @@ const handleShowRelationshipTree = () => {
 
 const handleShowChangelog = () => {
   emit('show-changelog');
+};
+
+const handleShowCustomization = () => {
+  emit('show-customization');
 };
 
 const build = (id: string) => {
@@ -81,6 +86,10 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
 <template>
   <div class="control-panel">
     <div class="resources">
+      <div class="res-item town-name-item" @click="handleShowCustomization" title="点击自定义城镇名称">
+        <span class="res-name">🏘️ 城镇:</span>
+        <span class="res-value">{{ gameInstance.state.townName || '猫果镇' }}</span>
+      </div>
       <div class="res-item">
         <span class="res-name">💰 镇库:</span>
         <span class="res-value">{{ townMoney }}</span>
@@ -136,6 +145,7 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
         <button @click="handleCreateCharacter" class="btn-add-char" title="添加新角色">➕ 添加角色</button>
         <button @click="handleShowRelationshipTree" class="btn-relationship" title="查看关系谱">👥 关系谱</button>
         <button @click="handleShowChangelog" class="btn-changelog" title="查看更新日志">📋 更新日志</button>
+        <button @click="handleShowCustomization" class="btn-customization" title="自定义城镇和居民">⚙️ 自定义</button>
         <button @click="handleReset" class="btn-reset" title="重置游戏到初始状态">🗑 重置</button>
         <input 
           ref="importFileInput"
@@ -224,12 +234,14 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
   color: #ffffff;
 }
 
-.version-item {
+.version-item,
+.town-name-item {
   cursor: pointer;
   transition: opacity 0.2s ease;
 }
 
-.version-item:hover {
+.version-item:hover,
+.town-name-item:hover {
   opacity: 0.8;
 }
 
@@ -496,5 +508,15 @@ button:active {
 
 .btn-changelog:hover {
   background: #5568d3 !important;
+}
+
+.btn-customization {
+  background: #16a085 !important;
+  color: white !important;
+  border-color: #138d75 !important;
+}
+
+.btn-customization:hover {
+  background: #138d75 !important;
 }
 </style>

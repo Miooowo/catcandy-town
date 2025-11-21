@@ -7,12 +7,21 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.0.0';
+export const GAME_VERSION = '1.0.1';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.1',
+    date: '2025-11-21,20:52',
+    added: [
+      '自定义城镇名称：玩家可以为自己的小镇命名',
+      '自定义初始居民：玩家可以在自定义界面查看和命名12个初始居民',
+      '自定义界面：新增专门的设置界面，方便管理城镇和居民名称'
+    ]
+  },
+  {
     version: '1.0.0',
-    date: '2024-01-01',
+    date: '2025-11-21',
     added: [
       '游戏初始版本发布',
       '居民系统：支持角色创建、性格设定、特性系统',

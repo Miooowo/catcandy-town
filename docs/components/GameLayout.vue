@@ -12,6 +12,7 @@ import RelationshipTree from './RelationshipTree.vue';
 import RelationshipNetwork from './RelationshipNetwork.vue';
 import RelationshipLoveMatrix from './RelationshipLoveMatrix.vue';
 import ChangelogModal from './ChangelogModal.vue';
+import CustomizationModal from './CustomizationModal.vue';
 import type { Building } from '../core/building';
 
 // 直接解构 state 以便在模板使用
@@ -56,6 +57,9 @@ const showLoveMatrix = ref(false);
 // 更新日志模态框状态
 const showChangelog = ref(false);
 
+// 自定义界面模态框状态
+const showCustomization = ref(false);
+
 const openRelationshipTree = () => {
   showRelationshipTree.value = true;
 };
@@ -86,6 +90,14 @@ const openChangelog = () => {
 
 const closeChangelog = () => {
   showChangelog.value = false;
+};
+
+const openCustomization = () => {
+  showCustomization.value = true;
+};
+
+const closeCustomization = () => {
+  showCustomization.value = false;
 };
 
 // 更新主题类名
@@ -153,6 +165,7 @@ provide('toggleDarkMode', toggleDarkMode);
       @toggle-dark="toggleDarkMode" 
       @show-relationship-tree="openRelationshipTree"
       @show-changelog="openChangelog"
+      @show-customization="openCustomization"
     />
 
     <div class="game-content">
@@ -215,6 +228,11 @@ provide('toggleDarkMode', toggleDarkMode);
     <ChangelogModal 
       :visible="showChangelog"
       @close="closeChangelog"
+    />
+    
+    <CustomizationModal 
+      :visible="showCustomization"
+      @close="closeCustomization"
     />
   </div>
 </template>

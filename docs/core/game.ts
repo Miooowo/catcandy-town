@@ -25,6 +25,8 @@ interface GameState {
   logs: LogEntry[];
   isPlaying: boolean;
   timeSpeed: number;
+  townName: string; // 城镇名称
+  customCharacterNames: string[]; // 自定义居民名称（12个）
 }
 
 export class GameEngine {
@@ -47,7 +49,9 @@ export class GameEngine {
       totalDaysPassed: 0,
       logs: [],
       isPlaying: false,
-      timeSpeed: 1
+      timeSpeed: 1,
+      townName: '猫果镇', // 默认城镇名称
+      customCharacterNames: [] // 自定义居民名称，如果为空则使用默认名称
     });
 
     this.loadOrInit();
@@ -202,11 +206,21 @@ export class GameEngine {
     this.state.isPlaying = false;
     this.state.timeSpeed = 1;
     
+    // 如果没有自定义城镇名称，使用默认值
+    if (!this.state.townName || this.state.townName.trim() === '') {
+      this.state.townName = '猫果镇';
+    }
+    
+    // 确定使用的居民名称列表
+    const characterNames = this.state.customCharacterNames.length === 12 
+      ? this.state.customCharacterNames 
+      : NAMES;
+    
     // 初始化角色
-    this.state.chars = NAMES.map(n => {
+    this.state.chars = characterNames.map(n => {
       const c = new Character(n);
       // 初始化关系网：所有人都是陌生人
-      NAMES.forEach(target => {
+      characterNames.forEach(target => {
         if (target !== n) c.relationships[target] = { love: 0, status: 'stranger' };
       });
       return c;
@@ -707,7 +721,9 @@ export class GameEngine {
       gameDay: this.state.gameDay,
       totalDaysPassed: this.state.totalDaysPassed,
       timeSpeed: this.state.timeSpeed,
-      lastNewCharDay: this.lastNewCharDay // 保存上次添加新居民的时间
+      lastNewCharDay: this.lastNewCharDay, // 保存上次添加新居民的时间
+      townName: this.state.townName, // 保存城镇名称
+      customCharacterNames: this.state.customCharacterNames // 保存自定义居民名称
     });
   }
 
@@ -770,13 +786,17 @@ export class GameEngine {
       }
       
       this.state.townMoney = migratedData.townMoney || 0;
-              this.state.gameTime = migratedData.gameTime || 480;
-              this.state.gameDay = migratedData.gameDay || 1;
-              this.state.totalDaysPassed = migratedData.totalDaysPassed || 0;
-              this.state.timeSpeed = migratedData.timeSpeed || 1;
-              
-              // 恢复新居民添加时间（如果存档中没有，使用总天数）
-              this.lastNewCharDay = migratedData.lastNewCharDay || this.state.totalDaysPassed;
+      this.state.gameTime = migratedData.gameTime || 480;
+      this.state.gameDay = migratedData.gameDay || 1;
+      this.state.totalDaysPassed = migratedData.totalDaysPassed || 0;
+      this.state.timeSpeed = migratedData.timeSpeed || 1;
+      
+      // 恢复城镇名称和自定义居民名称（如果存档中没有，使用默认值）
+      this.state.townName = migratedData.townName || '猫果镇';
+      this.state.customCharacterNames = migratedData.customCharacterNames || [];
+      
+      // 恢复新居民添加时间（如果存档中没有，使用总天数）
+      this.lastNewCharDay = migratedData.lastNewCharDay || this.state.totalDaysPassed;
       
       return { success: true };
     } catch (e) {
@@ -2477,7 +2497,7 @@ export class GameEngine {
     reader.readAsText(file);
   }
 
-  resetData() {
+  resetData(preserveCustomization: boolean = false) {
     // 检查是否在浏览器环境中
     if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
       this.log('❌ 重置功能仅在浏览器环境中可用！', 'error');
@@ -2485,8 +2505,17 @@ export class GameEngine {
     }
     
     if (confirm('确定要重置游戏吗？所有进度将丢失！')) {
+      // 保存自定义设置（如果需要保留）
+      const savedTownName = preserveCustomization ? this.state.townName : '猫果镇';
+      const savedCustomNames = preserveCustomization ? [...this.state.customCharacterNames] : [];
+      
       localStorage.removeItem('happyTownV2_Save');
       this.stop();
+      
+      // 恢复自定义设置
+      this.state.townName = savedTownName;
+      this.state.customCharacterNames = savedCustomNames;
+      
       this.initNewGame();
       this.log('🗑 游戏已重置到初始状态', 'info');
       // 重置后自动启动游戏
