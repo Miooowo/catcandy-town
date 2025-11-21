@@ -31,11 +31,17 @@ const getLogClass = (type: string) => {
   height: 100%;
   background: rgba(0, 0, 0, 0.85);
   font-family: monospace;
-  padding: 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   border-radius: 8px;
   transition: background-color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .log-panel {
+    padding: 10px;
+  }
 }
 
 :global(.dark-mode) .log-panel {
@@ -43,11 +49,18 @@ const getLogClass = (type: string) => {
 }
 
 .log-title {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: bold;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: #74b9ff;
   transition: color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .log-title {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
 }
 
 :global(.dark-mode) .log-title {
@@ -60,12 +73,23 @@ const getLogClass = (type: string) => {
 }
 
 .log-item {
-  font-size: 12px;
+  font-size: 10px;
   margin-bottom: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding-bottom: 4px;
   line-height: 1.4;
   transition: border-color 0.3s ease;
+  word-break: break-word;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+@media (min-width: 768px) {
+  .log-item {
+    font-size: 12px;
+    display: block;
+  }
 }
 
 :global(.dark-mode) .log-item {
@@ -75,8 +99,15 @@ const getLogClass = (type: string) => {
 .time {
   color: #74b9ff;
   opacity: 0.8;
-  margin-right: 8px;
+  margin-right: 6px;
   transition: color 0.3s ease, opacity 0.3s ease;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .time {
+    margin-right: 8px;
+  }
 }
 
 :global(.dark-mode) .time {
@@ -88,6 +119,8 @@ const getLogClass = (type: string) => {
 .msg {
   color: #dfe6e9;
   transition: color 0.3s ease;
+  flex: 1;
+  min-width: 0;
 }
 
 :global(.dark-mode) .msg {

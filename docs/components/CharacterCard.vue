@@ -86,7 +86,7 @@ const handleClick = () => {
 
 <style scoped>
 .char-card {
-  padding: 12px;
+  padding: 8px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -94,6 +94,14 @@ const handleClick = () => {
   transition: all 0.2s ease;
   min-width: 0;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (min-width: 768px) {
+  .char-card {
+    padding: 12px;
+  }
 }
 
 :global(.dark-mode) .char-card {
@@ -104,6 +112,10 @@ const handleClick = () => {
 .char-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.char-card:active {
+  transform: translateY(-2px);
 }
 
 .border-l-yellow {
@@ -134,8 +146,14 @@ const handleClick = () => {
 
 .char-name {
   color: #1f2937;
-  font-size: 14px;
+  font-size: 12px;
   transition: color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .char-name {
+    font-size: 14px;
+  }
 }
 
 :global(.dark-mode) .char-name {
@@ -143,12 +161,19 @@ const handleClick = () => {
 }
 
 .personality-badge {
-  font-size: 10px;
+  font-size: 9px;
   background: #f3f4f6;
-  padding: 2px 6px;
+  padding: 2px 4px;
   border-radius: 4px;
   color: #6b7280;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .personality-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
 }
 
 :global(.dark-mode) .personality-badge {
@@ -224,10 +249,16 @@ const handleClick = () => {
 }
 
 .char-money {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: bold;
   color: #f97316;
   flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .char-money {
+    font-size: 12px;
+  }
 }
 
 .hp-bar-container {

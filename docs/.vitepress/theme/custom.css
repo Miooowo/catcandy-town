@@ -5,3 +5,29 @@
   --vp-c-brand-dark: #d64a92;
 }
 
+/* 移动端优化 */
+@media (max-width: 767px) {
+  /* 防止移动端文本选择导致的意外行为 */
+  * {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  /* 优化滚动性能 */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* 防止移动端字体缩放 */
+  body {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  
+  /* 优化输入框在移动端的显示 */
+  input, textarea, select {
+    font-size: 16px !important; /* 防止iOS自动缩放 */
+  }
+}
+

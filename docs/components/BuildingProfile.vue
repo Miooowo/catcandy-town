@@ -271,11 +271,19 @@ const handleUpgrade = () => {
   background: white;
   border-radius: 12px;
   max-width: 600px;
-  width: 90%;
+  width: 95%;
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   animation: slideUp 0.3s ease;
+  margin: 10px;
+}
+
+@media (min-width: 768px) {
+  .profile-modal-content {
+    width: 90%;
+    margin: 0;
+  }
 }
 
 :global(.dark-mode) .profile-modal-content {
@@ -298,8 +306,14 @@ const handleUpgrade = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 12px;
   border-bottom: 1px solid #eee;
+}
+
+@media (min-width: 768px) {
+  .profile-header {
+    padding: 20px;
+  }
 }
 
 :global(.dark-mode) .profile-header {
@@ -308,9 +322,15 @@ const handleUpgrade = () => {
 
 .profile-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: bold;
   color: #1f2937;
+}
+
+@media (min-width: 768px) {
+  .profile-title {
+    font-size: 20px;
+  }
 }
 
 :global(.dark-mode) .profile-title {
@@ -331,6 +351,9 @@ const handleUpgrade = () => {
   justify-content: center;
   border-radius: 4px;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
 .modal-close:hover {
@@ -344,7 +367,13 @@ const handleUpgrade = () => {
 }
 
 .profile-content {
-  padding: 20px;
+  padding: 12px;
+}
+
+@media (min-width: 768px) {
+  .profile-content {
+    padding: 20px;
+  }
 }
 
 .profile-section {
@@ -356,12 +385,20 @@ const handleUpgrade = () => {
 }
 
 .profile-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 16px;
+  margin: 0 0 10px 0;
+  font-size: 14px;
   font-weight: bold;
   color: #1f2937;
   border-bottom: 2px solid #e5e7eb;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
+}
+
+@media (min-width: 768px) {
+  .profile-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    padding-bottom: 8px;
+  }
 }
 
 :global(.dark-mode) .profile-section h4 {

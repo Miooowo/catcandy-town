@@ -140,13 +140,23 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
 
 <style scoped>
 .control-panel {
-  padding: 10px;
+  padding: 8px;
   background: #fff;
   border-bottom: 1px solid #eee;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
   transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .control-panel {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    gap: 15px;
+  }
 }
 
 :global(.dark-mode) .control-panel {
@@ -154,14 +164,31 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
   border-bottom-color: #404040;
   color: #e5e5e5;
 }
+
 .resources {
   display: flex;
-  gap: 15px;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
+
+@media (min-width: 768px) {
+  .resources {
+    gap: 15px;
+  }
+}
+
 .res-item {
   font-weight: bold;
   color: #1a1a1a;
   transition: color 0.3s ease;
+  font-size: 12px;
+}
+
+@media (min-width: 768px) {
+  .res-item {
+    font-size: 14px;
+  }
 }
 
 .res-name {
@@ -188,22 +215,44 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
 
 .actions {
   display: flex;
-  gap: 15px;
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .actions {
+    gap: 15px;
+  }
 }
 
 .time-speed-control {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
+  gap: 4px;
+  font-size: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .time-speed-control {
+    gap: 8px;
+    font-size: 0.85rem;
+    flex-wrap: nowrap;
+  }
 }
 
 .speed-label {
   white-space: nowrap;
   color: #666;
   transition: color 0.3s ease;
+  font-size: 11px;
+}
+
+@media (min-width: 768px) {
+  .speed-label {
+    font-size: 0.85rem;
+  }
 }
 
 :global(.dark-mode) .speed-label {
@@ -211,15 +260,30 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
 }
 
 .speed-slider {
-  width: 100px;
+  width: 60px;
   cursor: pointer;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .speed-slider {
+    width: 100px;
+  }
 }
 
 .speed-display {
-  min-width: 35px;
+  min-width: 30px;
   font-weight: bold;
   color: #4a90e2;
   transition: color 0.3s ease;
+  font-size: 11px;
+}
+
+@media (min-width: 768px) {
+  .speed-display {
+    min-width: 35px;
+    font-size: 0.85rem;
+  }
 }
 
 :global(.dark-mode) .speed-display {
@@ -227,12 +291,19 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
 }
 
 .speed-custom {
-  width: 60px;
+  width: 50px;
   padding: 2px 4px;
   border: 1px solid #ddd;
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .speed-custom {
+    width: 60px;
+    font-size: 0.85rem;
+  }
 }
 
 :global(.dark-mode) .speed-custom {
@@ -243,27 +314,58 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
 
 .button-group {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .button-group {
+    gap: 8px;
+  }
 }
 
 button {
-  padding: 5px 10px;
+  padding: 6px 8px;
   cursor: pointer;
   border: 1px solid #ddd;
   background: #f5f5f5;
   border-radius: 4px;
   transition: all 0.2s ease;
+  font-size: 11px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 32px;
+}
+
+@media (min-width: 768px) {
+  button {
+    padding: 5px 10px;
+    font-size: 14px;
+    min-height: auto;
+  }
 }
 
 button:hover {
   background: #e5e5e5;
 }
 
+button:active {
+  transform: scale(0.95);
+}
+
 .theme-toggle {
-  font-size: 18px;
-  padding: 4px 8px;
-  min-width: 36px;
+  font-size: 16px;
+  padding: 4px 6px;
+  min-width: 32px;
+}
+
+@media (min-width: 768px) {
+  .theme-toggle {
+    font-size: 18px;
+    padding: 4px 8px;
+    min-width: 36px;
+  }
 }
 
 :global(.dark-mode) button {

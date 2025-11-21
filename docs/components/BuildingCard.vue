@@ -125,13 +125,22 @@ const operatingStatus = computed(() => {
   background: white;
   border: 1px dashed #ccc;
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   transition: all 0.3s ease;
   opacity: 0.6;
   filter: grayscale(1);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (min-width: 768px) {
+  .building-card {
+    padding: 12px;
+    gap: 12px;
+  }
 }
 
 :global(.dark-mode) .building-card {
@@ -162,9 +171,19 @@ const operatingStatus = computed(() => {
   cursor: pointer;
 }
 
+.building-card:active {
+  transform: translateY(0);
+}
+
 .building-icon {
-  font-size: 32px;
+  font-size: 24px;
   flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .building-icon {
+    font-size: 32px;
+  }
 }
 
 .building-info {
@@ -175,9 +194,15 @@ const operatingStatus = computed(() => {
 .building-name {
   font-weight: bold;
   color: #1f2937;
-  font-size: 14px;
+  font-size: 12px;
   margin-bottom: 4px;
   transition: color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .building-name {
+    font-size: 14px;
+  }
 }
 
 :global(.dark-mode) .building-name {

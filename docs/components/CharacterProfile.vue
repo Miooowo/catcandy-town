@@ -292,14 +292,25 @@ const getChildAge = (childName: string) => {
 
 .profile-modal-content {
   background: white;
-  padding: 30px;
+  padding: 16px;
   border-radius: 12px;
   max-width: 700px;
-  max-height: 85vh;
+  width: 95%;
+  max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   animation: slideUp 0.3s ease;
   transition: background-color 0.3s ease;
+  margin: 10px;
+}
+
+@media (min-width: 768px) {
+  .profile-modal-content {
+    padding: 30px;
+    width: 90%;
+    max-height: 85vh;
+    margin: 0;
+  }
 }
 
 :global(.dark-mode) .profile-modal-content {
@@ -322,16 +333,29 @@ const getChildAge = (childName: string) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 25px;
-  padding-bottom: 15px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
   border-bottom: 3px solid #4a90e2;
+}
+
+@media (min-width: 768px) {
+  .profile-header {
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+  }
 }
 
 .profile-header h3 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   color: #333;
   transition: color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .profile-header h3 {
+    font-size: 1.5rem;
+  }
 }
 
 :global(.dark-mode) .profile-header h3 {
@@ -349,9 +373,12 @@ const getChildAge = (childName: string) => {
   background: none;
   border: none;
   padding: 0;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   transition: color 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
 .modal-close:hover {
@@ -367,12 +394,19 @@ const getChildAge = (childName: string) => {
 }
 
 .profile-section {
-  margin-bottom: 20px;
-  padding: 15px;
+  margin-bottom: 16px;
+  padding: 12px;
   background: #f8f9fa;
   border-radius: 8px;
   border-left: 4px solid #4a90e2;
   transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .profile-section {
+    margin-bottom: 20px;
+    padding: 15px;
+  }
 }
 
 :global(.dark-mode) .profile-section {
@@ -381,10 +415,17 @@ const getChildAge = (childName: string) => {
 }
 
 .profile-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 1.1rem;
+  margin: 0 0 10px 0;
+  font-size: 0.95rem;
   color: #333;
   transition: color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .profile-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 1.1rem;
+  }
 }
 
 :global(.dark-mode) .profile-section h4 {
@@ -430,8 +471,14 @@ const getChildAge = (childName: string) => {
 .profile-stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 8px;
   margin-top: 10px;
+}
+
+@media (min-width: 768px) {
+  .profile-stats-grid {
+    gap: 10px;
+  }
 }
 
 .profile-stat-item {
@@ -447,10 +494,16 @@ const getChildAge = (childName: string) => {
 }
 
 .profile-stat-value {
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   font-weight: bold;
   color: #4a90e2;
   transition: color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .profile-stat-value {
+    font-size: 1.3rem;
+  }
 }
 
 :global(.dark-mode) .profile-stat-value {

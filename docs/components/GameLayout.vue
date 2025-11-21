@@ -202,10 +202,10 @@ provide('toggleDarkMode', toggleDarkMode);
 .game-wrapper {
   background: #f9fafb;
   min-height: 100vh;
-  padding: 16px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -217,22 +217,37 @@ provide('toggleDarkMode', toggleDarkMode);
 .game-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  height: calc(100vh - 100px);
+  gap: 12px;
+  height: calc(100vh - 80px);
+  overflow: hidden;
 }
 
 @media (min-width: 768px) {
+  .game-wrapper {
+    padding: 16px;
+    gap: 16px;
+  }
+  
   .game-content {
     flex-direction: row;
+    gap: 16px;
+    height: calc(100vh - 100px);
   }
 }
 
 .section {
   background: #f3f4f6;
-  padding: 12px;
+  padding: 8px;
   border-radius: 8px;
   overflow-y: auto;
   transition: background-color 0.3s ease;
+  min-height: 0;
+}
+
+@media (min-width: 768px) {
+  .section {
+    padding: 12px;
+  }
 }
 
 .dark-mode .section {
@@ -241,22 +256,31 @@ provide('toggleDarkMode', toggleDarkMode);
 
 .residents-section {
   flex: 2;
+  min-height: 200px;
 }
 
 .buildings-section {
   flex: 1;
+  min-height: 150px;
 }
 
 .log-section {
   flex: 1;
+  min-height: 150px;
 }
 
 .section-title {
   font-weight: bold;
   margin-bottom: 8px;
   color: #4b5563;
-  font-size: 14px;
+  font-size: 12px;
   transition: color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .section-title {
+    font-size: 14px;
+  }
 }
 
 .dark-mode .section-title {
@@ -266,12 +290,13 @@ provide('toggleDarkMode', toggleDarkMode);
 .residents-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 8px;
+  gap: 6px;
 }
 
 @media (min-width: 640px) {
   .residents-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 }
 
@@ -284,6 +309,33 @@ provide('toggleDarkMode', toggleDarkMode);
 .buildings-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+
+@media (min-width: 768px) {
+  .buildings-list {
+    gap: 8px;
+  }
+}
+
+/* 移动端滚动优化 */
+@media (max-width: 767px) {
+  .section {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  
+  .section::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  .section::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+  }
+  
+  .dark-mode .section::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+  }
 }
 </style>
