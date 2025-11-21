@@ -57,8 +57,9 @@ const showLoveMatrix = ref(false);
 // 更新日志模态框状态
 const showChangelog = ref(false);
 
-// 自定义界面模态框状态
+// 自定义界面模态框状态（首次启动时显示）
 const showCustomization = ref(false);
+const isInitialSetup = ref(false); // 标记是否为首次设置
 
 const openRelationshipTree = () => {
   showRelationshipTree.value = true;
@@ -94,10 +95,26 @@ const closeChangelog = () => {
 
 const openCustomization = () => {
   showCustomization.value = true;
+  isInitialSetup.value = false;
 };
 
 const closeCustomization = () => {
   showCustomization.value = false;
+};
+
+// 完成初始设置并开始游戏
+const completeInitialSetup = () => {
+  showCustomization.value = false;
+  isInitialSetup.value = false;
+  // 初始化游戏
+  if (gameInstance.state.chars.length === 0) {
+    gameInstance.initNewGame();
+    gameInstance.log(`🏘️ 欢迎来到 **${gameInstance.state.townName}**！`, 'system');
+  }
+  // 自动开始游戏
+  if (!gameInstance.state.isPlaying) {
+    gameInstance.start();
+  }
 };
 
 // 更新主题类名
@@ -135,9 +152,21 @@ onMounted(() => {
   // 应用主题
   updateTheme();
   
-  // 可以在这里做一些浏览器端的初始化检查
-  if (!state.isPlaying) {
-    gameInstance.start();
+  // 检查是否需要首次设置
+  const hasSave = localStorage.getItem('happyTownV2_Save');
+  const hasCustomization = gameInstance.state.townName && 
+                          gameInstance.state.townName !== '猫果镇' ||
+                          gameInstance.state.customCharacterNames.length === 12;
+  
+  // 如果没有存档且没有自定义设置，显示初始设置界面
+  if (!hasSave && !hasCustomization && gameInstance.state.chars.length === 0) {
+    isInitialSetup.value = true;
+    showCustomization.value = true;
+  } else {
+    // 有存档或已有设置，正常启动游戏
+    if (!state.isPlaying && gameInstance.state.chars.length > 0) {
+      gameInstance.start();
+    }
   }
 });
 
@@ -232,7 +261,9 @@ provide('toggleDarkMode', toggleDarkMode);
     
     <CustomizationModal 
       :visible="showCustomization"
+      :is-initial-setup="isInitialSetup"
       @close="closeCustomization"
+      @complete-setup="completeInitialSetup"
     />
   </div>
 </template>

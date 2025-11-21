@@ -14,13 +14,30 @@ const close = () => {
   emit('close');
 };
 
-// 格式化日期显示
+// 格式化日期显示（支持带时间的格式）
 const formatDate = (dateStr: string) => {
+  // 支持多种日期格式
+  // 格式1: 2025/11/21 21:00
+  // 格式2: 2025-11-21 20:52
+  // 格式3: 2025-11-21
+  
+  // 如果包含时间（有空格和冒号）
+  if (dateStr.includes(' ') && dateStr.includes(':')) {
+    // 直接返回，已经是友好格式
+    return dateStr.replace(/-/g, '/');
+  }
+  
+  // 尝试解析标准日期格式
   const date = new Date(dateStr);
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  return `${year}年${month}月${day}日`;
+  if (!isNaN(date.getTime())) {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${year}年${month}月${day}日`;
+  }
+  
+  // 如果无法解析，直接返回原字符串
+  return dateStr;
 };
 
 // 按版本号倒序排列（最新的在前）

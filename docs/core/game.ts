@@ -107,7 +107,12 @@ export class GameEngine {
         this.initNewGame();
       }
     } else {
-      this.initNewGame();
+      // 没有存档，不自动初始化，等待用户完成首次设置
+      // 只有在已有自定义设置时才初始化
+      if (this.state.townName && this.state.townName !== '猫果镇' || 
+          this.state.customCharacterNames.length === 12) {
+        this.initNewGame();
+      }
     }
     // 不再需要 renderUIStatic() - Vue 会自动渲染
   }
