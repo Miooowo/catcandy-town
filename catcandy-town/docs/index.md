@@ -1,0 +1,24 @@
+---
+layout: home
+
+hero:
+  name: "猫果镇物语"
+  text: "以旁观者的视角，观察小镇居民的日常生活"
+  tagline: 一款挂机放置类模拟游戏，使用 Vue 3 和 VitePress 构建
+  actions:
+    - theme: brand
+      text: 开始游戏
+      link: /play
+    - theme: alt
+      text: 游戏指南
+      link: /guide/intro
+
+features:
+  - title: 挂机放置
+    details: 无需频繁操作，游戏会自动运行。你可以随时查看小镇的发展情况。
+  - title: 旁观者视角
+    details: 作为观察者，见证居民们自主工作、社交、恋爱、结婚等日常生活。
+  - title: 丰富的互动
+    details: 居民之间会发展复杂的人际关系，包括友谊、恋爱、婚姻，甚至出轨等戏剧性事件。
+---
+
