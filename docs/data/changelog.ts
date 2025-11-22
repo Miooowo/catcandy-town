@@ -7,9 +7,22 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.4';
+export const GAME_VERSION = '1.4.1';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.4.1',
+    date: '2025/11/22',
+    added: [
+      '教堂门槛费：进入教堂需要200元门槛费，神父获得90%，10%用来升级教堂',
+      '结婚费用：等级结婚时进入教堂不需要门槛费，但需要办理结婚费用300元，神父获得90%，10%用来升级教堂',
+      '零花钱机制：1到17岁的孩子可以获得来自父母的零花钱，零花钱从父母的账户里扣除'
+    ],
+    changed: [
+      '修正孩子年龄：刚出生为1岁（之前为0岁）',
+      '年龄限制：1到17岁不可以去站街或者卖银，也不可以参与任何工作，不可以喝酒也不可以去买银'
+    ]
+  },
   {
     version: '1.4',
     date: '2025/11/22 8:21',

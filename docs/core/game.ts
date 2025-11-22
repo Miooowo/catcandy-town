@@ -414,6 +414,9 @@ export class GameEngine {
       // 检查抢劫事件（每小时检查一次）
       this.checkRobbery();
       
+      // 检查零花钱（每小时检查一次，针对1-17岁的孩子）
+      this.checkAllowance();
+      
       // 检查年龄增长和死亡（每天检查一次）
       if (this.state.gameTime === 0) {
         this.checkAgeAndDeath();
@@ -672,7 +675,8 @@ export class GameEngine {
           const candidates = this.state.chars.filter(c =>
             !c.job &&
             !c.prostitute &&
-            c.hasTrait('promiscuous')
+            c.hasTrait('promiscuous') &&
+            c.age > 17 // 1到17岁不可以卖银
           );
 
           if (candidates.length > 0 && Math.random() < 0.1) { // 10%概率拉皮条
@@ -1144,43 +1148,71 @@ export class GameEngine {
       }
     }
 
-    // S2. 上班优先（检查冷静期）
-    if (p.job) {
-      // 检查是否在辞职冷静期内
-      if (p.resignationCooldown && this.getAbsoluteTime() < p.resignationCooldown) {
-        // 冷静期内不能工作，强制失业
+    // 年龄限制：1到17岁不可以参与任何工作，不可以站街或卖银
+    if (p.age >= 1 && p.age <= 17) {
+      // 如果有工作，强制失业
+      if (p.job) {
+        const building = this.state.buildings.find(b => b.id === p.job!.buildingId);
+        if (building) {
+          const index = building.staff.indexOf(p.name);
+          if (index !== -1) {
+            building.staff.splice(index, 1);
+          }
+        }
         p.job = null;
-        p.currentAction = "失业中（冷静期）";
-        return;
       }
       
-      const workplace = this.state.buildings.find(b => b.id === p.job!.buildingId);
-      if (workplace && workplace.isOpen(hour, this.state.gameDay)) {
-        const is24Hour = workplace.open === 0 && workplace.close === 24;
-        const shouldWork = is24Hour ? Math.random() < 0.7 : true;
-        if (shouldWork) {
-          this.doWork(p, workplace);
+      // 不能站街或打零工
+      if (p.money < 20) {
+        // 尝试获得零花钱
+        this.tryGetAllowance(p);
+        if (p.money < 20) {
+          p.currentAction = "未成年（等待零花钱）";
+          this.doRest(p, { name: "路边", effect: "none", price: 0 });
           return;
         }
       }
-    }
+      
+      // 跳过工作相关逻辑
+    } else {
+      // S2. 上班优先（检查冷静期）
+      if (p.job) {
+        // 检查是否在辞职冷静期内
+        if (p.resignationCooldown && this.getAbsoluteTime() < p.resignationCooldown) {
+          // 冷静期内不能工作，强制失业
+          p.job = null;
+          p.currentAction = "失业中（冷静期）";
+          return;
+        }
+        
+        const workplace = this.state.buildings.find(b => b.id === p.job!.buildingId);
+        if (workplace && workplace.isOpen(hour, this.state.gameDay)) {
+          const is24Hour = workplace.open === 0 && workplace.close === 24;
+          const shouldWork = is24Hour ? Math.random() < 0.7 : true;
+          if (shouldWork) {
+            this.doWork(p, workplace);
+            return;
+          }
+        }
+      }
 
-    // S3. 生存压力：无业且没钱时强制搬砖或站街（但冷静期内不能工作）
-    if (!p.job && p.money < 20) {
-      // 检查是否在辞职冷静期内
-      if (p.resignationCooldown && this.getAbsoluteTime() < p.resignationCooldown) {
-        // 冷静期内不能打零工或站街，只能休息
-        p.currentAction = "失业中（冷静期）";
-        this.doRest(p, { name: "路边", effect: "none", price: 0 });
+      // S3. 生存压力：无业且没钱时强制搬砖或站街（但冷静期内不能工作）
+      if (!p.job && p.money < 20) {
+        // 检查是否在辞职冷静期内
+        if (p.resignationCooldown && this.getAbsoluteTime() < p.resignationCooldown) {
+          // 冷静期内不能打零工或站街，只能休息
+          p.currentAction = "失业中（冷静期）";
+          this.doRest(p, { name: "路边", effect: "none", price: 0 });
+          return;
+        }
+        
+        if (p.hasTrait('promiscuous') && Math.random() < 0.6) {
+          this.doStreetwalking(p);
+        } else {
+          this.doOddJob(p);
+        }
         return;
       }
-      
-      if (p.hasTrait('promiscuous') && Math.random() < 0.6) {
-        this.doStreetwalking(p);
-      } else {
-        this.doOddJob(p);
-      }
-      return;
     }
 
     // 状态检查
@@ -1680,6 +1712,12 @@ export class GameEngine {
   }
 
   doStreetwalking(p: Character) {
+    // 年龄限制：1到17岁不可以站街
+    if (p.age >= 1 && p.age <= 17) {
+      p.currentAction = "未成年（不能站街）";
+      this.doRest(p, { name: "路边", effect: "none", price: 0 });
+      return;
+    }
     const income = rand(8, 15);
     p.money += income;
     p.happiness -= 4;
@@ -1990,7 +2028,98 @@ export class GameEngine {
   }
 
   doSocial(p: Character, venue: any) {
-    // 特性学习机制：没有特性的居民在社交中可能学习特性
+    // 年龄限制：1到17岁不可以喝酒也不可以去买银
+    if (p.age >= 1 && p.age <= 17) {
+      // 检查是否在酒吧或洗脚店
+      if (venue.id === 'bar' || venue.id === 'footshop') {
+        p.currentAction = `在 ${venue.name} 外（未成年禁止入内）`;
+        this.doRest(p, { id: '', name: "路边", effect: "none", price: 0, products: [] });
+        return;
+      }
+    }
+    
+    // 教堂门槛费检查
+    if (venue.id === 'church') {
+      const church = this.state.buildings.find(b => b.id === 'church' && b.isBuilt);
+      if (church) {
+        // 检查是否是等级结婚（已经有partner且关系是spouse或lover）
+        const isGettingMarried = p.partner && 
+          (p.relationships[p.partner]?.status === 'spouse' || 
+           p.relationships[p.partner]?.status === 'lover');
+        
+        if (isGettingMarried) {
+          // 等级结婚：需要办理结婚费用300元
+          const marriageFee = 300;
+          if (p.money >= marriageFee) {
+            p.money -= marriageFee;
+            
+            // 分配收入：神父获得90%，10%用来升级教堂
+            if (church.staff.length > 0) {
+              const priestName = church.staff[0];
+              const priest = this.state.chars.find(c => c.name === priestName);
+              if (priest) {
+                const priestIncome = Math.floor(marriageFee * 0.9);
+                priest.money += priestIncome;
+                priest.incomeStats.work += priestIncome;
+                priest.incomeStats.total += priestIncome;
+                if (!priest.buildingIncome) {
+                  priest.buildingIncome = {};
+                }
+                priest.buildingIncome[church.id] = (priest.buildingIncome[church.id] || 0) + priestIncome;
+              }
+            }
+            
+            // 10%用来升级教堂
+            const upgradeFund = Math.floor(marriageFee * 0.1);
+            church.companyFunds += upgradeFund;
+            church.totalRevenue += marriageFee;
+            
+            this.log(`[💒结婚费用] **${p.name}** 在教堂办理结婚手续，支付了 💰${marriageFee}元（神父获得90%，10%用于升级教堂）`, 'event');
+          } else {
+            // 没钱办理结婚，不能进入
+            p.currentAction = `在 ${venue.name} 外（没钱办理结婚手续）`;
+            this.doRest(p, { id: '', name: "路边", effect: "none", price: 0, products: [] });
+            return;
+          }
+        } else {
+          // 普通进入：需要200元门槛费
+          const entranceFee = 200;
+          if (p.money >= entranceFee) {
+            p.money -= entranceFee;
+            
+            // 分配收入：神父获得90%，10%用来升级教堂
+            if (church.staff.length > 0) {
+              const priestName = church.staff[0];
+              const priest = this.state.chars.find(c => c.name === priestName);
+              if (priest) {
+                const priestIncome = Math.floor(entranceFee * 0.9);
+                priest.money += priestIncome;
+                priest.incomeStats.work += priestIncome;
+                priest.incomeStats.total += priestIncome;
+                if (!priest.buildingIncome) {
+                  priest.buildingIncome = {};
+                }
+                priest.buildingIncome[church.id] = (priest.buildingIncome[church.id] || 0) + priestIncome;
+              }
+            }
+            
+            // 10%用来升级教堂
+            const upgradeFund = Math.floor(entranceFee * 0.1);
+            church.companyFunds += upgradeFund;
+            church.totalRevenue += entranceFee;
+            
+            this.log(`[💒门槛费] **${p.name}** 进入教堂，支付了 💰${entranceFee}元门槛费（神父获得90%，10%用于升级教堂）`, 'event');
+          } else {
+            // 没钱支付门槛费，不能进入
+            p.currentAction = `在 ${venue.name} 外（没钱支付门槛费）`;
+            this.doRest(p, { id: '', name: "路边", effect: "none", price: 0, products: [] });
+            return;
+          }
+        }
+      }
+    }
+    
+    // 特质学习机制：没有特质的居民在社交中可能学习特质
     this.tryLearnTrait(p, 'social', venue);
     
     // 检查是否已经喝晕（如果已经喝晕，只处理喝晕事件，不进行其他活动）
@@ -3476,7 +3605,7 @@ export class GameEngine {
     // 创建新角色（孩子）
     const childName = this.generateRandomName();
     const child = new Character(childName);
-    child.age = 0; // 新生儿
+    child.age = 1; // 刚出生为1岁
     child.maxAge = 100; // 默认最大寿命
     child.parents = {
       mother: char.name,
@@ -3732,6 +3861,62 @@ export class GameEngine {
       
       this.log(`[❌抢劫失败] **${robber.name}** 试图抢劫 **${target.name}**，但失败了！`, 'reject');
     }
+  }
+
+  // 检查零花钱（针对1-17岁的孩子）
+  checkAllowance() {
+    this.state.chars.forEach(child => {
+      // 只处理1-17岁的孩子
+      if (child.age < 1 || child.age > 17) return;
+      if (!child.parents) return; // 没有父母信息
+      
+      // 每小时有10%概率获得零花钱
+      if (Math.random() < 0.1) {
+        this.giveAllowance(child);
+      }
+    });
+  }
+  
+  // 给予零花钱
+  giveAllowance(child: Character) {
+    if (!child.parents) return;
+    
+    const mother = this.state.chars.find(c => c.name === child.parents!.mother);
+    const father = this.state.chars.find(c => c.name === child.parents!.father);
+    
+    // 优先从母亲那里获得零花钱，如果母亲没钱则从父亲那里
+    let giver: Character | null = null;
+    if (mother && mother.money > 0) {
+      giver = mother;
+    } else if (father && father.money > 0) {
+      giver = father;
+    }
+    
+    if (giver) {
+      const allowance = rand(5, 20); // 零花钱5-20元
+      if (giver.money >= allowance) {
+        giver.money -= allowance;
+        child.money += allowance;
+        this.log(`[💰零花钱] **${child.name}** 从 **${giver.name}** 那里获得了 💰${allowance}元零花钱`, 'event');
+      }
+    }
+  }
+  
+  // 尝试获得零花钱（当孩子没钱时）
+  tryGetAllowance(p: Character) {
+    if (p.age < 1 || p.age > 17) return; // 只对1-17岁的孩子
+    if (!p.parents) return;
+    if (p.money >= 20) return; // 已经有足够的钱了
+    
+    // 每天最多尝试一次
+    const lastAllowanceTime = (p as any).lastAllowanceTime || 0;
+    const currentDay = Math.floor(this.state.totalDaysPassed);
+    const lastAllowanceDay = Math.floor(lastAllowanceTime);
+    
+    if (currentDay === lastAllowanceDay) return; // 今天已经尝试过了
+    
+    (p as any).lastAllowanceTime = this.getAbsoluteTime();
+    this.giveAllowance(p);
   }
 
   // 居民离开城镇
