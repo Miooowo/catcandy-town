@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm install && npx vitepress build docs",
+  "buildCommand": "npm install && npm run vercel-build",
   "outputDirectory": "docs/.vitepress/dist",
   "installCommand": "npm install",
   "framework": null,
