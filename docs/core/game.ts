@@ -29,6 +29,7 @@ interface GameState {
   customCharacterNames: string[]; // 自定义居民名称（12个）
   observerName: string; // 旁观者名称（多人模式显示用）
   promiscuityLevel: number; // 淫乱度等级（0-10），影响全局淫乱属性
+  mayor?: string; // 镇长名称（可选）
 }
 
 export class GameEngine {
@@ -39,7 +40,8 @@ export class GameEngine {
   private autoSaveInterval: number = 15; // 自动存档间隔（秒）
   private beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
   private lastNewCharDay: number = 0; // 上次添加新居民的游戏日
-  private newCharInterval: number = 5; // 每5天添加一个新居民
+  private newCharInterval: number = 5; // 默认每5天添加一个新居民（会根据工作岗位动态调节）
+  private lastMayorElectionDay: number = -1; // 上次镇长选举的游戏日（-1表示从未选举过）
   private currentSlot: number = 1; // 当前存档槽位（1-5）
   private isMultiplayerMode: boolean = false; // 是否多人模式
   private currentTownId: string | null = null; // 当前城镇ID（多人模式）
@@ -302,12 +304,36 @@ export class GameEngine {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  // 自动添加新居民（定期调用）
+  // 自动添加新居民（定期调用，动态调节迁入速度）
   tryAddNewResident() {
+    // 计算可用工作岗位数量
+    const totalJobs = this.state.buildings
+      .filter(b => b.isBuilt)
+      .reduce((sum, b) => sum + (b.jobs?.length || 0), 0);
+    const currentResidents = this.state.chars.length;
+    const employedResidents = this.state.chars.filter(c => c.job !== null).length;
+    const availableJobs = totalJobs - employedResidents;
+    
+    // 动态调节迁入间隔
+    let migrationInterval = this.newCharInterval; // 默认5天
+    
+    if (currentResidents > availableJobs) {
+      // 居民数量大于可用岗位，放慢迁入速度
+      if (this.lastNewCharDay > 0 && this.state.totalDaysPassed - this.lastNewCharDay >= 30) {
+        // 如果已经1个月没迁入，且仍然居民>岗位，进一步放慢到3个月
+        migrationInterval = 90; // 3个月
+      } else {
+        migrationInterval = 30; // 1个月
+      }
+    } else if (availableJobs > currentResidents) {
+      // 岗位数量大于居民，加快迁入速度
+      migrationInterval = 5; // 5天
+    }
+    
     // 检查是否到了添加新居民的时间
     const daysSinceLastNewChar = this.state.totalDaysPassed - this.lastNewCharDay;
     
-    if (daysSinceLastNewChar >= this.newCharInterval) {
+    if (daysSinceLastNewChar >= migrationInterval) {
       // 获取所有已存在的角色名字（包括初始居民和自定义名字）
       const existingNames = new Set(this.state.chars.map(c => c.name));
       
@@ -316,29 +342,18 @@ export class GameEngine {
         ? new Set(this.state.customCharacterNames)
         : new Set<string>();
       
-      // 尝试从 NAMES 列表中添加（但要排除已存在的和自定义名字）
-      const availableNames = NAMES.filter(name => 
-        !existingNames.has(name) && !customNamesSet.has(name)
-      );
-      
+      // 生成随机名字（不再使用NAMES列表）
       let newName: string;
-      if (availableNames.length > 0) {
-        // 优先使用 NAMES 列表中的名字（但不在自定义名字中）
-        newName = choose(availableNames);
-      } else {
-        // NAMES 列表用完了或都被排除了，生成随机名字
-        // 确保不重复（包括不与自定义名字重复）
-        let attempts = 0;
-        do {
-          newName = this.generateRandomName();
-          attempts++;
-          if (attempts > 100) {
-            // 如果尝试100次都重复，添加数字后缀
-            newName = this.generateRandomName() + rand(1, 999);
-            break; // 添加数字后缀后肯定不重复，跳出循环
-          }
-        } while (existingNames.has(newName) || customNamesSet.has(newName));
-      }
+      let attempts = 0;
+      do {
+        newName = this.generateRandomName();
+        attempts++;
+        if (attempts > 100) {
+          // 如果尝试100次都重复，添加数字后缀
+          newName = this.generateRandomName() + rand(1, 999);
+          break; // 添加数字后缀后肯定不重复，跳出循环
+        }
+      } while (existingNames.has(newName) || customNamesSet.has(newName));
       
       // 创建新角色
       const newChar = new Character(newName);
@@ -390,9 +405,28 @@ export class GameEngine {
     }
     
     // 确定使用的居民名称列表
-    const characterNames = this.state.customCharacterNames.length === 12 
-      ? this.state.customCharacterNames 
-      : NAMES;
+    let characterNames: string[];
+    if (this.state.customCharacterNames.length === 12) {
+      characterNames = this.state.customCharacterNames;
+    } else {
+      // 如果没有自定义名称，生成12个随机名称
+      characterNames = [];
+      const usedNames = new Set<string>();
+      for (let i = 0; i < 12; i++) {
+        let newName = this.generateRandomName();
+        let attempts = 0;
+        while (usedNames.has(newName) && attempts < 50) {
+          newName = this.generateRandomName();
+          attempts++;
+        }
+        if (attempts >= 50) {
+          // 如果尝试50次都重复，添加数字后缀
+          newName = this.generateRandomName() + rand(1, 999);
+        }
+        usedNames.add(newName);
+        characterNames.push(newName);
+      }
+    }
     
     // 初始化角色
     const currentTime = this.getAbsoluteTime();
@@ -413,8 +447,10 @@ export class GameEngine {
       return c;
     });
 
-    // 初始化建筑
-    this.state.buildings = BUILDINGS_BLUEPRINT.map(b => new Building(b));
+    // 初始化建筑（过滤隐藏建筑，根据条件决定是否显示）
+    this.state.buildings = BUILDINGS_BLUEPRINT
+      .filter(b => !(b as any).hidden || this.shouldShowHiddenBuilding(b.id))
+      .map(b => new Building(b));
     
     // 0级淫乱度：清理所有炮友和小三关系
     if (this.state.promiscuityLevel === 0) {
@@ -502,11 +538,23 @@ export class GameEngine {
       
       // 尝试添加新居民（每天检查一次）
       this.tryAddNewResident();
+      
+      // 检查是否需要举行镇长选举（30天后，且从未选举过或上次选举是30天前）
+      if (this.state.totalDaysPassed >= 30 && 
+          (this.lastMayorElectionDay === -1 || this.state.totalDaysPassed - this.lastMayorElectionDay >= 30)) {
+        this.holdMayorElection();
+      }
+      
+      // 更新建筑显示状态（检查隐藏建筑是否应该显示）
+      this.updateBuildingVisibility();
     }
 
     // 尝试招聘/选举 (每小时一次，避免刷屏)
     if (this.state.gameTime % 60 === 0) {
       this.runElectionsAndHiring();
+      
+      // 应用镇长特质对城镇的影响（每小时检查一次）
+      this.applyMayorEffects();
       
       // 可信度自然恢复（每小时恢复1点，但不超过初始值50）
       this.state.chars.forEach(c => {
@@ -938,7 +986,8 @@ export class GameEngine {
       townName: this.state.townName, // 保存城镇名称
       customCharacterNames: this.state.customCharacterNames, // 保存自定义居民名称
       observerName: this.state.observerName, // 保存旁观者名称
-      promiscuityLevel: this.state.promiscuityLevel // 保存淫乱度等级
+      promiscuityLevel: this.state.promiscuityLevel, // 保存淫乱度等级
+      mayor: this.state.mayor // 保存镇长名称
     });
   }
 
@@ -991,9 +1040,11 @@ export class GameEngine {
           return building;
         }).filter((b: any) => b !== null) as Building[];
       } else {
-        // 如果存档中没有建筑数据，重新初始化建筑
+        // 如果存档中没有建筑数据，重新初始化建筑（过滤隐藏建筑）
         console.warn('存档中没有建筑数据，重新初始化建筑');
-        this.state.buildings = BUILDINGS_BLUEPRINT.map(b => new Building(b));
+        this.state.buildings = BUILDINGS_BLUEPRINT
+          .filter(b => !(b as any).hidden || this.shouldShowHiddenBuilding(b.id))
+          .map(b => new Building(b));
         // 默认公园是建好的
         const park = this.state.buildings.find(b => b.id === 'park');
         if (park) {
@@ -1015,13 +1066,17 @@ export class GameEngine {
       // 恢复旁观者名称（如果旧存档没有，随机生成一个）
       if (migratedData.observerName && migratedData.observerName.trim()) {
         this.state.observerName = migratedData.observerName;
-        this.state.promiscuityLevel = migratedData.promiscuityLevel !== undefined ? migratedData.promiscuityLevel : 1;
       } else {
-        // 随机生成一个旁观者名称
-        this.state.observerName = this.generateRandomName() + rand(1, 999);
+        // 如果旧存档没有旁观者名称，随机生成一个
+        this.state.observerName = this.generateRandomName() + '的观察者';
         this.log(`[🎲随机] 为你的存档随机生成了旁观者名称：${this.state.observerName}`, 'system');
-        this.state.promiscuityLevel = migratedData.promiscuityLevel !== undefined ? migratedData.promiscuityLevel : 1;
       }
+      
+      // 恢复淫乱度等级（默认1）
+      this.state.promiscuityLevel = migratedData.promiscuityLevel !== undefined ? migratedData.promiscuityLevel : 1;
+      
+      // 恢复镇长（如果存在）
+      this.state.mayor = migratedData.mayor;
       
       // 0级淫乱度：清理所有炮友和小三关系
       if (this.state.promiscuityLevel === 0) {
@@ -1030,6 +1085,9 @@ export class GameEngine {
       
       // 恢复新居民添加时间（如果存档中没有，使用总天数）
       this.lastNewCharDay = migratedData.lastNewCharDay || this.state.totalDaysPassed;
+      
+      // 更新建筑显示状态（检查隐藏建筑是否应该显示）
+      this.updateBuildingVisibility();
       
       return { success: true };
     } catch (e) {
@@ -1245,10 +1303,68 @@ export class GameEngine {
     }
   }
 
+  // 检查是否应该显示隐藏建筑
+  shouldShowHiddenBuilding(buildingId: string): boolean {
+    if (buildingId === 'secretroom') {
+      // 秘密房间：只有拥有淫乱特质的居民大于半数时才显示
+      const totalResidents = this.state.chars.length;
+      if (totalResidents === 0) return false;
+      const promiscuousCount = this.state.chars.filter(c => c.hasTrait('promiscuous')).length;
+      return promiscuousCount > totalResidents / 2;
+    }
+    return true; // 其他建筑默认显示
+  }
+
+  // 更新建筑显示状态（检查隐藏建筑是否应该显示）
+  updateBuildingVisibility() {
+    // 检查秘密房间是否应该显示
+    const secretroomBlueprint = BUILDINGS_BLUEPRINT.find(b => b.id === 'secretroom');
+    if (secretroomBlueprint) {
+      const shouldShow = this.shouldShowHiddenBuilding('secretroom');
+      const existingBuilding = this.state.buildings.find(b => b.id === 'secretroom');
+      
+      if (shouldShow && !existingBuilding) {
+        // 应该显示但没有，添加建筑
+        this.state.buildings.push(new Building(secretroomBlueprint));
+      } else if (!shouldShow && existingBuilding && !existingBuilding.isBuilt) {
+        // 不应该显示且未建造，移除建筑
+        const index = this.state.buildings.indexOf(existingBuilding);
+        if (index !== -1) {
+          this.state.buildings.splice(index, 1);
+        }
+      }
+    }
+  }
+
   // 角色行为决策核心方法
   decideAction(p: Character) {
     // 行动前先结束上一段互动关系（如果有）
     this.breakInteraction(p);
+    
+    // 检查是否被困在秘密房间
+    const secretroom = this.state.buildings.find(b => b.id === 'secretroom' && b.isBuilt);
+    if (secretroom && secretroom.occupants.includes(p.name)) {
+      // 被困在秘密房间，必须交欢才能离开
+      if (secretroom.isLocked && !secretroom.hasHadSex) {
+        // 房间已锁且未交欢，尝试交欢
+        this.trySecretRoomSex(p, secretroom);
+        return;
+      } else if (secretroom.isLocked && secretroom.hasHadSex) {
+        // 已交欢，可以离开
+        const index = secretroom.occupants.indexOf(p.name);
+        if (index !== -1) {
+          secretroom.occupants.splice(index, 1);
+        }
+        // 如果所有人都离开了，重置锁门状态
+        if (secretroom.occupants.length === 0) {
+          secretroom.isLocked = false;
+          secretroom.hasHadSex = false;
+        }
+        p.currentAction = `离开 ${secretroom.name}`;
+        return;
+      }
+    }
+    
     const hour = Math.floor(this.state.gameTime / 60);
 
     // S1. 睡觉优先
@@ -1512,9 +1628,26 @@ export class GameEngine {
     
     // 洗脚店特殊处理
     if (building.id === 'footshop') {
+      // 应用镇长加成（如果有）
+      let actualRevenue = revenue;
+      let mayorTax = 0;
+      if ((building as any).mayorBonus) {
+        actualRevenue = revenue * (building as any).mayorBonus; // 应用10%加成
+      }
+      if ((building as any).mayorTax && this.state.mayor) {
+        mayorTax = Math.round(actualRevenue * (building as any).mayorTax * 100) / 100; // 5%税收
+        const mayor = this.state.chars.find(c => c.name === this.state.mayor);
+        if (mayor) {
+          mayor.money = Math.round((mayor.money + mayorTax) * 100) / 100;
+          mayor.incomeStats.work = Math.round((mayor.incomeStats.work + mayorTax) * 100) / 100;
+          mayor.incomeStats.total = Math.round((mayor.incomeStats.total + mayorTax) * 100) / 100;
+        }
+        actualRevenue -= mayorTax; // 扣除税收后的实际收入
+      }
+      
       // 洗脚店：10%公司账户，50%老板，40%卖银者均分
       // 金额精确到小数点后两位
-      const revenueDecimal = Math.round(revenue * 100) / 100;
+      const revenueDecimal = Math.round(actualRevenue * 100) / 100;
       
       // 公司账户：10%
       const companyShare = Math.round(revenueDecimal * 0.1 * 100) / 100;
@@ -2015,6 +2148,10 @@ export class GameEngine {
     if (p.hasTrait('sleepy') && building.id === 'hotel') {
       return true;
     }
+    // 严肃性格的居民优先建造城镇管理局
+    if (p.personality.name === '严肃' && building.id === 'townhall') {
+      return true;
+    }
     // 可以扩展其他特性对应的建筑偏好
     return false;
   }
@@ -2316,6 +2453,68 @@ export class GameEngine {
       // 检查是否在酒吧或洗脚店
       if (venue.id === 'bar' || venue.id === 'footshop') {
         p.currentAction = `在 ${venue.name} 外（未成年禁止入内）`;
+        this.doRest(p, { id: '', name: "路边", effect: "none", price: 0, products: [] });
+        return;
+      }
+    }
+    
+    // 秘密房间：特殊处理
+    if (venue.id === 'secretroom') {
+      const secretroom = this.state.buildings.find(b => b.id === 'secretroom' && b.isBuilt);
+      if (!secretroom) {
+        p.currentAction = `在 ${venue.name} 外（建筑不存在）`;
+        this.doRest(p, { id: '', name: "路边", effect: "none", price: 0, products: [] });
+        return;
+      }
+      
+      // 进入秘密房间（没有门槛费用）
+      if (!secretroom.occupants.includes(p.name)) {
+        secretroom.occupants.push(p.name);
+      }
+      
+      // 检查是否需要锁门（2个及以上的人）
+      if (secretroom.occupants.length >= 2 && !secretroom.isLocked) {
+        secretroom.isLocked = true;
+        secretroom.hasHadSex = false;
+        this.log(`[🔒秘密房间] **${secretroom.name}** 检测到有 ${secretroom.occupants.length} 人进入，房间已自动锁门！必须两两交欢一次才能解锁离开。`, 'drama');
+      }
+      
+      // 如果已锁门，尝试交欢
+      if (secretroom.isLocked && !secretroom.hasHadSex) {
+        this.trySecretRoomSex(p, secretroom);
+        return;
+      } else if (secretroom.isLocked && secretroom.hasHadSex) {
+        // 已交欢，可以离开
+        const index = secretroom.occupants.indexOf(p.name);
+        if (index !== -1) {
+          secretroom.occupants.splice(index, 1);
+        }
+        // 如果所有人都离开了，重置锁门状态
+        if (secretroom.occupants.length === 0) {
+          secretroom.isLocked = false;
+          secretroom.hasHadSex = false;
+          this.log(`[🔓秘密房间] 所有人都已离开，房间解锁。`, 'event');
+        } else {
+          p.currentAction = `离开 ${secretroom.name}`;
+        }
+        return;
+      }
+      
+      // 未锁门，正常进入
+      p.currentAction = `在 ${secretroom.name}`;
+      return;
+    }
+    
+    // 城镇管理局：不能放松，只能举报
+    if (venue.id === 'townhall') {
+      const townhall = this.state.buildings.find(b => b.id === 'townhall' && b.isBuilt);
+      if (townhall && townhall.staff.length > 0) {
+        // 居民可以举报其他居民
+        this.tryReportToTownhall(p, townhall);
+        return;
+      } else {
+        // 城镇管理局没有工作人员，不能进入
+        p.currentAction = `在 ${venue.name} 外（暂无工作人员）`;
         this.doRest(p, { id: '', name: "路边", effect: "none", price: 0, products: [] });
         return;
       }
@@ -5309,6 +5508,423 @@ export class GameEngine {
     
     // 自动保存
     this.autoSave();
+  }
+
+  // 举行镇长选举（30天后进行）
+  holdMayorElection() {
+    // 如果已经有镇长，跳过
+    if (this.state.mayor) {
+      const mayor = this.state.chars.find(c => c.name === this.state.mayor);
+      if (mayor && !mayor.isDead) {
+        return; // 镇长还在，不需要重新选举
+      }
+    }
+
+    // 筛选候选人：所有活着的居民都可以参选
+    const candidates = this.state.chars.filter(c => !c.isDead);
+
+    if (candidates.length === 0) {
+      return; // 没有候选人
+    }
+
+    // 投票系统：同意票和反对票
+    const yesVotes: Record<string, number> = {};
+    const noVotes: Record<string, number> = {};
+    candidates.forEach(c => {
+      yesVotes[c.name] = 0;
+      noVotes[c.name] = 0;
+    });
+
+    // 所有居民投票
+    this.state.chars.forEach(voter => {
+      if (voter.isDead) return;
+      
+      candidates.forEach(c => {
+        if (c.name === voter.name) {
+          // 自己投自己同意票
+          yesVotes[c.name]++;
+        } else {
+          // 根据好感度、可信度决定投票
+          const rel = voter.relationships[c.name];
+          const love = rel ? rel.love : 0;
+
+          // 基础投票倾向
+          let voteScore = love;
+
+          // 可信度影响
+          const credibilityFactor = (c.credibility - 50) / 2;
+          voteScore += credibilityFactor;
+
+          // 性格影响：开朗、温柔、热情等性格更容易获得支持
+          if (c.personality.name === '开朗' || c.personality.name === '温柔' || 
+              c.personality.name === '热情' || c.personality.name === '乐观') {
+            voteScore += 15;
+          }
+          // 刻薄、冷漠、悲观等性格更难获得支持
+          if (c.personality.name === '刻薄' || c.personality.name === '冷漠' || 
+              c.personality.name === '悲观') {
+            voteScore -= 15;
+          }
+
+          // 特质影响：社交达人更容易获得支持
+          if (c.hasTrait('social')) {
+            voteScore += 10;
+          }
+          // 孤僻特质更难获得支持
+          if (c.hasTrait('loner')) {
+            voteScore -= 10;
+          }
+
+          // 随机波动
+          voteScore += rand(-10, 10);
+
+          // 决定投票
+          if (voteScore >= 20) {
+            yesVotes[c.name]++;
+          } else if (voteScore <= 0) {
+            noVotes[c.name]++;
+          }
+        }
+      });
+    });
+
+    // 结算：得票最多的当选
+    let winner: Character | null = null;
+    let maxYesVotes = -1;
+
+    for (const name in yesVotes) {
+      const yes = yesVotes[name];
+      const no = noVotes[name] || 0;
+
+      // 同意票大于反对票，且同意票最多
+      if (yes > no && yes > maxYesVotes) {
+        maxYesVotes = yes;
+        winner = candidates.find(c => c.name === name) || null;
+      }
+    }
+
+    if (winner) {
+      const oldMayor = this.state.mayor;
+      this.state.mayor = winner.name;
+      this.lastMayorElectionDay = this.state.totalDaysPassed;
+      const noCount = noVotes[winner.name] || 0;
+      winner.credibility = Math.min(100, winner.credibility + 20);
+      
+      if (oldMayor && oldMayor !== winner.name) {
+        const oldMayorChar = this.state.chars.find(c => c.name === oldMayor);
+        if (oldMayorChar) {
+          this.log(`[🗳️镇长选举] **${oldMayor}** 卸任镇长职务。`, 'system');
+        }
+      }
+      
+      this.log(`[🗳️镇长选举] 经全民公投，**${winner.name}** (${maxYesVotes}同意/${noCount}反对) 当选为新任镇长！`, 'build');
+      
+      // 自动保存
+      this.autoSave();
+    } else {
+      this.log(`[🗳️镇长选举] 本次选举未能选出镇长，将在30天后重新选举。`, 'reject');
+    }
+  }
+
+  // 应用镇长特质对城镇的影响
+  applyMayorEffects() {
+    if (!this.state.mayor) return;
+
+    const mayor = this.state.chars.find(c => c.name === this.state.mayor);
+    if (!mayor || mayor.isDead) {
+      // 镇长已死亡，清除镇长
+      this.state.mayor = undefined;
+      return;
+    }
+
+    // 淫乱特质的镇长：扶持洗脚店
+    if (mayor.hasTrait('promiscuous')) {
+      const footshop = this.state.buildings.find(b => b.id === 'footshop');
+      if (footshop && footshop.isBuilt) {
+        // 洗脚店获得额外利润加成（10%）
+        // 这个加成会在收入分配时应用
+        // 镇长从洗脚店收入中收取5%的税收
+        // 这里我们标记一个状态，在收入分配时应用
+        (footshop as any).mayorBonus = 1.1; // 10%加成
+        (footshop as any).mayorTax = 0.05; // 5%税收
+      }
+    } else {
+      // 清除之前的加成
+      const footshop = this.state.buildings.find(b => b.id === 'footshop');
+      if (footshop) {
+        delete (footshop as any).mayorBonus;
+        delete (footshop as any).mayorTax;
+      }
+    }
+
+    // 其他特质的影响可以在这里添加
+    // 例如：勤奋特质的镇长可能提升整体工作效率
+    // 社交达人特质的镇长可能提升城镇幸福度
+    // 等等
+  }
+
+  // 居民向城镇管理局举报
+  tryReportToTownhall(reporter: Character, townhall: Building) {
+    // 检查是否有可举报的对象（排除自己和城镇管理局的工作人员）
+    const staffNames = new Set(townhall.staff);
+    const potentialTargets = this.state.chars.filter(c => 
+      c.name !== reporter.name && 
+      !staffNames.has(c.name) &&
+      !c.isDead
+    );
+
+    if (potentialTargets.length === 0) {
+      reporter.currentAction = `在 ${townhall.name}（暂无举报对象）`;
+      return;
+    }
+
+    // 选择举报目标（优先举报好感度低的人）
+    const targets = potentialTargets.sort((a, b) => {
+      const relA = reporter.relationships[a.name];
+      const relB = reporter.relationships[b.name];
+      const loveA = relA ? relA.love : 0;
+      const loveB = relB ? relB.love : 0;
+      return loveA - loveB; // 好感度低的排在前面
+    });
+
+    // 选择举报目标（优先选择好感度最低的，但有一定随机性）
+    const topTargets = targets.slice(0, Math.min(3, targets.length)); // 选择好感度最低的3个
+    const target = choose(topTargets);
+
+    if (!target) return;
+
+    // 检查举报动机（好感度低、性格冲突等）
+    const rel = reporter.relationships[target.name];
+    const love = rel ? rel.love : 0;
+    
+    // 好感度越低，举报概率越高
+    let reportChance = 0.1; // 基础概率10%
+    if (love < -20) {
+      reportChance = 0.5; // 好感度很低，50%概率举报
+    } else if (love < 0) {
+      reportChance = 0.3; // 好感度为负，30%概率举报
+    } else if (love < 20) {
+      reportChance = 0.15; // 好感度较低，15%概率举报
+    }
+
+    // 性格影响：刻薄、易怒的人更容易举报
+    if (reporter.personality.name === '刻薄' || reporter.personality.name === '易怒') {
+      reportChance *= 1.5;
+    }
+
+    // 特质影响：理性的人更不容易举报，冲动的人更容易举报
+    if (reporter.hasTrait('rational')) {
+      reportChance *= 0.7;
+    } else if (reporter.hasTrait('impulsive')) {
+      reportChance *= 1.3;
+    }
+
+    if (Math.random() < reportChance) {
+      // 进行举报
+      this.log(`[🚨举报] **${reporter.name}** 向城镇管理局举报了 **${target.name}**！`, 'drama');
+      reporter.currentAction = `在 ${townhall.name} 举报 ${target.name}`;
+      
+      // 城镇管理局进行核实和惩罚
+      this.townhallInvestigateAndPunish(reporter, target, townhall);
+    } else {
+      // 没有举报，只是去城镇管理局
+      reporter.currentAction = `在 ${townhall.name}（咨询事务）`;
+    }
+  }
+
+  // 城镇管理局核实并惩罚
+  townhallInvestigateAndPunish(reporter: Character, target: Character, townhall: Building) {
+    // 检查是否有违规行为（可以举报的内容）
+    const violations: string[] = [];
+
+    // 检查是否有炮友关系（在纯爱模式下可举报）
+    if (this.state.promiscuityLevel === 0 && target.fwbList.length > 0) {
+      violations.push('非正当关系');
+    }
+
+    // 检查是否有小三关系（在纯爱模式下可举报）
+    if (this.state.promiscuityLevel === 0) {
+      const hasMistress = Object.values(target.relationships).some(rel => rel.status === 'mistress');
+      if (hasMistress) {
+        violations.push('非正当关系');
+      }
+    }
+
+    // 检查是否有贿赂行为（如果之前被举报过）
+    if ((target as any).wasReported) {
+      violations.push('贿赂行为');
+    }
+
+    // 检查是否有打架行为
+    if (target.fightCount > 0) {
+      violations.push('暴力行为');
+    }
+
+    // 检查是否有摸鱼行为（被抓到多次）
+    const totalSlackingCount = Object.values(target.slackingOffCount || {}).reduce((sum, count) => sum + count, 0);
+    if (totalSlackingCount > 5) {
+      violations.push('工作不认真');
+    }
+
+    // 检查是否有抢劫行为（可以通过其他方式记录）
+    // 这里我们假设如果居民有多次打架记录，可能涉及抢劫
+    if (target.fightCount > 3) {
+      violations.push('多次暴力行为');
+    }
+
+    // 核实概率：根据举报者的可信度和目标的可信度
+    let verifyChance = 0.6; // 基础核实概率60%
+    
+    // 举报者可信度高，核实概率更高
+    if (reporter.credibility > 70) {
+      verifyChance += 0.2;
+    } else if (reporter.credibility < 30) {
+      verifyChance -= 0.2;
+    }
+
+    // 目标可信度高，核实概率更低（更不容易被判定违规）
+    if (target.credibility > 70) {
+      verifyChance -= 0.2;
+    } else if (target.credibility < 30) {
+      verifyChance += 0.2;
+    }
+
+    verifyChance = Math.max(0.2, Math.min(0.9, verifyChance)); // 限制在20%-90%之间
+
+    if (violations.length > 0 && Math.random() < verifyChance) {
+      // 核实成功，进行惩罚
+      const violation = choose(violations);
+      
+      // 罚款金额（根据违规严重程度）
+      let fineAmount = 50; // 基础罚款50元
+      if (violation === '非正当关系' || violation === '贿赂行为') {
+        fineAmount = 100; // 严重违规，罚款100元
+      } else if (violation === '多次暴力行为') {
+        fineAmount = 150; // 非常严重，罚款150元
+      }
+
+      // 如果目标没钱，减少罚款或改为其他惩罚
+      if (target.money < fineAmount) {
+        fineAmount = Math.floor(target.money * 0.5); // 罚款为现有资金的50%
+        if (fineAmount < 10) {
+          fineAmount = 10; // 最少罚款10元
+        }
+      }
+
+      // 执行罚款
+      target.money = Math.max(0, target.money - fineAmount);
+      
+      // 罚款进入镇库
+      this.state.townMoney += fineAmount;
+
+      // 降低目标的可信度
+      target.credibility = Math.max(0, target.credibility - 10);
+
+      // 降低目标对举报者的好感度
+      if (!target.relationships[reporter.name]) {
+        target.relationships[reporter.name] = { love: 0, status: 'stranger' };
+      }
+      target.relationships[reporter.name].love = Math.max(-100, target.relationships[reporter.name].love - 30);
+
+      this.log(`[⚖️城镇管理局] 经核实，**${target.name}** 确实存在"${violation}"行为，被罚款 💰${fineAmount}元，可信度下降10点。`, 'drama');
+      
+      // 如果目标没钱支付罚款，记录欠款
+      if (target.money === 0 && fineAmount > 0) {
+        this.log(`[⚖️城镇管理局] **${target.name}** 因资金不足，罚款已从现有资金中扣除。`, 'info');
+      }
+    } else if (violations.length > 0) {
+      // 有违规行为但核实失败（可能是误报或证据不足）
+      this.log(`[⚖️城镇管理局] 对 **${target.name}** 的举报进行了核实，但证据不足，未进行惩罚。`, 'info');
+      
+      // 目标对举报者的好感度也会下降（因为被举报了）
+      if (!target.relationships[reporter.name]) {
+        target.relationships[reporter.name] = { love: 0, status: 'stranger' };
+      }
+      target.relationships[reporter.name].love = Math.max(-100, target.relationships[reporter.name].love - 10);
+    } else {
+      // 没有发现违规行为
+      this.log(`[⚖️城镇管理局] 对 **${target.name}** 的举报进行了核实，未发现违规行为。`, 'info');
+      
+      // 举报者可信度略微下降（误报）
+      reporter.credibility = Math.max(0, reporter.credibility - 2);
+      
+      // 目标对举报者的好感度下降
+      if (!target.relationships[reporter.name]) {
+        target.relationships[reporter.name] = { love: 0, status: 'stranger' };
+      }
+      target.relationships[reporter.name].love = Math.max(-100, target.relationships[reporter.name].love - 15);
+    }
+  }
+
+  // 秘密房间交欢尝试
+  trySecretRoomSex(p: Character, secretroom: Building) {
+    if (!secretroom.isLocked || secretroom.hasHadSex) {
+      return; // 未锁门或已交欢，不需要处理
+    }
+
+    // 找到房间内的其他人员
+    const otherOccupants = secretroom.occupants.filter(name => name !== p.name);
+    if (otherOccupants.length === 0) {
+      p.currentAction = `在 ${secretroom.name}（等待其他人）`;
+      return;
+    }
+
+    // 选择一个人进行交欢
+    const partnerName = choose(otherOccupants);
+    const partner = this.state.chars.find(c => c.name === partnerName);
+    if (!partner) {
+      return;
+    }
+
+    // 检查是否可以进行交欢（纯爱模式下需要是恋人/配偶关系）
+    const promiscuityModifier = this.getPromiscuityModifier();
+    const pRel = p.relationships[partnerName];
+    const partnerRel = partner.relationships[p.name];
+
+    if (promiscuityModifier === 0) {
+      // 纯爱模式：只允许恋人/配偶关系
+      if (!pRel || (pRel.status !== 'lover' && pRel.status !== 'spouse')) {
+        p.currentAction = `在 ${secretroom.name}（纯爱模式下无法与非恋人交欢）`;
+        return;
+      }
+    }
+
+    // 交欢概率
+    let sexChance = 0.5; // 基础概率50%
+    if (p.hasTrait('promiscuous') || partner.hasTrait('promiscuous')) {
+      sexChance = 0.8; // 淫乱特质概率更高
+    }
+    if (pRel && pRel.love > 50) {
+      sexChance += 0.2; // 好感度高概率更高
+    }
+
+    if (Math.random() < sexChance) {
+      // 交欢成功
+      secretroom.hasHadSex = true;
+      p.sexCount = (p.sexCount || 0) + 1;
+      partner.sexCount = (partner.sexCount || 0) + 1;
+
+      // 增加好感度
+      if (!pRel) {
+        p.relationships[partnerName] = { love: 0, status: 'stranger' };
+      }
+      if (!partnerRel) {
+        partner.relationships[p.name] = { love: 0, status: 'stranger' };
+      }
+      p.relationships[partnerName].love = Math.min(100, (p.relationships[partnerName].love || 0) + 10);
+      partner.relationships[p.name].love = Math.min(100, (partner.relationships[p.name].love || 0) + 10);
+
+      // 降低性欲
+      p.sexualDesire = Math.max(0, p.sexualDesire - 30);
+      partner.sexualDesire = Math.max(0, partner.sexualDesire - 30);
+
+      this.log(`[🔒秘密房间] **${p.name}** 和 **${partnerName}** 在 ${secretroom.name} 中交欢，房间已解锁！`, 'drama');
+      p.currentAction = `在 ${secretroom.name} 与 ${partnerName} 交欢`;
+      partner.currentAction = `在 ${secretroom.name} 与 ${p.name} 交欢`;
+    } else {
+      // 交欢失败（可能因为抗拒等）
+      p.currentAction = `在 ${secretroom.name}（尝试交欢但被拒绝）`;
+    }
   }
 }
 

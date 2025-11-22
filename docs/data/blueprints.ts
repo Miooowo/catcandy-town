@@ -86,5 +86,15 @@ export const BUILDINGS_BLUEPRINT: BuildingBlueprint[] = [
       { id: "contraceptive_patch", name: "避孕贴 (1个)", price: 75 },
       { id: "condoms", name: "避孕套 (12个)", price: 40 }
     ]
+  },
+  { 
+    id: "townhall", name: "🏛️ 城镇管理局", cost: 2000, desc: "城镇管理与治安", effect: "management",
+    price: 0, open: 8, close: 18, jobs: ["城管", "城管", "城管"], closedDays: [0], // 周日休息
+    products: []
+  },
+  { 
+    id: "secretroom", name: "🔒 秘密房间", cost: 3000, desc: "必须得做点爱做的事情", effect: "ntr",
+    price: 0, open: 0, close: 24, jobs: [], products: [],
+    hidden: true // 标记为隐藏建筑
   }
 ];

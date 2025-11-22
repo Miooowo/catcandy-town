@@ -25,6 +25,9 @@ export class Building {
   level: number; // 建筑等级（影响最低薪资）
   baseSalary: number; // 基础工资（根据等级计算）
   products: Product[]; // 商品列表
+  occupants: string[]; // 建筑内的人员（用于秘密房间）
+  isLocked: boolean; // 是否锁门（用于秘密房间）
+  hasHadSex: boolean; // 是否已交欢（用于秘密房间解锁）
 
   constructor(blueprint: BuildingBlueprint) {
     this.id = blueprint.id;
@@ -51,6 +54,9 @@ export class Building {
     this.level = 1; // 初始等级为1
     this.baseSalary = 10; // 初始基础工资
     this.products = blueprint.products || []; // 初始化商品列表
+    this.occupants = []; // 初始化建筑内人员
+    this.isLocked = false; // 初始未锁门
+    this.hasHadSex = false; // 初始未交欢
   }
 
   isOpen(hour: number, day: number): boolean {

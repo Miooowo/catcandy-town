@@ -5,7 +5,9 @@ export const GAME_CONFIG = {
 
 export const DAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
-export const NAMES = ["耄耋", "曼波", "哈基米", "果猫", "暖泪", "沐夏", "sans", "时苏", "小睿", "斗罗1654e", "云绒", "抉"];
+// 默认名称列表（已废弃，现在使用随机生成）
+// 保留用于向后兼容和预设
+export const NAMES: string[] = [];
 
 export interface Trait {
   id: string;

@@ -62,7 +62,6 @@ const sortedChangelog = computed(() => {
           class="changelog-entry"
         >
           <div v-if="entry.title" class="changelog-title">{{ entry.title }}</div>
-          <div v-if="entry.title" class="changelog-title">{{ entry.title }}</div>
           <div class="entry-header">
             <span class="entry-version">v{{ entry.version }}</span>
             <span class="entry-date">{{ formatDate(entry.date) }}</span>
@@ -275,6 +274,26 @@ const sortedChangelog = computed(() => {
 :global(.dark-mode) .changelog-entry {
   background: #1a1a1a;
   border-left-color: #5a9ae2;
+}
+
+.changelog-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #4a90e2;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #4a90e2;
+}
+
+@media (min-width: 768px) {
+  .changelog-title {
+    font-size: 2rem;
+  }
+}
+
+:global(.dark-mode) .changelog-title {
+  color: #5a9ae2;
+  border-bottom-color: #5a9ae2;
 }
 
 .entry-header {
