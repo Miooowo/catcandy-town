@@ -304,8 +304,10 @@ const characterRelationships = computed(() => {
         if (char.partner === r.name) return false;
         // 排除恋人、小三、前任、炮友（这些在专门区域显示）
         if (r.status === 'lover' || r.status === 'mistress' || r.status === 'ex' || r.status === 'fwb') return false;
-        // 显示所有关系，包括陌生人（但排除好感度为0且是陌生人的关系）
-        return r.love > 0 || r.status !== 'stranger';
+        // 排除陌生人关系
+        if (r.status === 'stranger') return false;
+        // 显示其他关系（朋友、挚友等）
+        return true;
       })
       .sort((a, b) => {
         // 先按状态排序（朋友>挚友>陌生人），再按好感度排序

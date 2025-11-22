@@ -7,9 +7,16 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.5';
+export const GAME_VERSION = '1.5.1';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.5.1',
+    date: '2025/11/22 8:53',
+    fixed: [
+      '修复友谊关系显示：陌生人关系不再显示在友谊关系中'
+    ]
+  },
   {
     version: '1.5',
     date: '2025/11/22 8:46',
