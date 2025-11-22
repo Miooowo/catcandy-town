@@ -209,16 +209,26 @@ export class GameEngine {
     const daysSinceLastNewChar = this.state.totalDaysPassed - this.lastNewCharDay;
     
     if (daysSinceLastNewChar >= this.newCharInterval) {
-      // 尝试从 NAMES 列表中添加
-      const availableNames = NAMES.filter(name => !this.state.chars.find(c => c.name === name));
+      // 获取所有已存在的角色名字（包括初始居民和自定义名字）
+      const existingNames = new Set(this.state.chars.map(c => c.name));
+      
+      // 如果使用了自定义名字，排除自定义名字列表中的名字
+      const customNamesSet = this.state.customCharacterNames.length === 12 
+        ? new Set(this.state.customCharacterNames)
+        : new Set<string>();
+      
+      // 尝试从 NAMES 列表中添加（但要排除已存在的和自定义名字）
+      const availableNames = NAMES.filter(name => 
+        !existingNames.has(name) && !customNamesSet.has(name)
+      );
       
       let newName: string;
       if (availableNames.length > 0) {
-        // 优先使用 NAMES 列表中的名字
+        // 优先使用 NAMES 列表中的名字（但不在自定义名字中）
         newName = choose(availableNames);
       } else {
-        // NAMES 列表用完了，生成随机名字
-        // 确保不重复
+        // NAMES 列表用完了或都被排除了，生成随机名字
+        // 确保不重复（包括不与自定义名字重复）
         let attempts = 0;
         do {
           newName = this.generateRandomName();
@@ -226,8 +236,9 @@ export class GameEngine {
           if (attempts > 100) {
             // 如果尝试100次都重复，添加数字后缀
             newName = this.generateRandomName() + rand(1, 999);
+            break; // 添加数字后缀后肯定不重复，跳出循环
           }
-        } while (this.state.chars.find(c => c.name === newName) && attempts <= 100);
+        } while (existingNames.has(newName) || customNamesSet.has(newName));
       }
       
       // 创建新角色
@@ -238,6 +249,12 @@ export class GameEngine {
         newChar.relationships[c.name] = { love: 0, status: 'stranger' };
         c.relationships[newName] = { love: 0, status: 'stranger' };
       });
+      
+      // 多人模式：设置所属城镇
+      if (this.isMultiplayerMode && this.currentTownId) {
+        newChar.homeTown = this.currentTownId;
+        newChar.currentTown = this.currentTownId;
+      }
       
       // 添加到角色列表
       this.state.chars.push(newChar);
@@ -1050,6 +1067,12 @@ export class GameEngine {
         if (partner.isRelieving) {
           this.handleSexualRelief(partner);
         }
+        
+        // 如果一起在酒店，清除酒店状态
+        if (partner.isInHotel && partner.hotelWith === c.name) {
+          partner.isInHotel = false;
+          partner.hotelWith = undefined;
+        }
       }
       c.interactingWith = null;
       
@@ -1057,6 +1080,28 @@ export class GameEngine {
       if (c.isRelieving) {
         this.handleSexualRelief(c);
       }
+      
+      // 如果一起在酒店，清除酒店状态
+      if (c.isInHotel && c.hotelWith) {
+        const hotelPartner = this.state.chars.find(x => x.name === c.hotelWith);
+        if (hotelPartner && hotelPartner.isInHotel && hotelPartner.hotelWith === c.name) {
+          hotelPartner.isInHotel = false;
+          hotelPartner.hotelWith = undefined;
+        }
+        c.isInHotel = false;
+        c.hotelWith = undefined;
+      }
+    } else if (c.isInHotel) {
+      // 如果没有互动对象但还在酒店，清除酒店状态
+      if (c.hotelWith) {
+        const hotelPartner = this.state.chars.find(x => x.name === c.hotelWith);
+        if (hotelPartner && hotelPartner.isInHotel && hotelPartner.hotelWith === c.name) {
+          hotelPartner.isInHotel = false;
+          hotelPartner.hotelWith = undefined;
+        }
+      }
+      c.isInHotel = false;
+      c.hotelWith = undefined;
     }
   }
 
@@ -1187,7 +1232,21 @@ export class GameEngine {
     
     let venue: any;
     if (availableVenues.length > 0) {
-      const selectedBuilding = choose(availableVenues);
+      // 有"淫乱"特质的人更倾向于去药店购买避孕用品
+      let selectedBuilding: Building;
+      if (p.hasTrait('promiscuous')) {
+        const pharmacy = availableVenues.find(b => b.id === 'pharmacy');
+        if (pharmacy && Math.random() < 0.4) {
+          // 40%概率选择药店
+          selectedBuilding = pharmacy;
+        } else {
+          // 其他情况随机选择
+          selectedBuilding = choose(availableVenues);
+        }
+      } else {
+        selectedBuilding = choose(availableVenues);
+      }
+      
       venue = {
         id: selectedBuilding.id,
         name: selectedBuilding.name,
@@ -1876,6 +1935,33 @@ export class GameEngine {
     const affordableProducts = products.filter(prod => p.money >= prod.price);
     if (affordableProducts.length === 0) return null;
     
+    // 特性影响：淫乱特质的人在药店更倾向于购买避孕用品
+    // 检查是否在药店（通过商品ID判断）
+    const isPharmacy = affordableProducts.some(prod => 
+      prod.id === 'birth_control_pills' || 
+      prod.id === 'contraceptive_patch' || 
+      prod.id === 'condoms'
+    );
+    
+    if (isPharmacy && p.hasTrait('promiscuous')) {
+      // 有"淫乱"特质的人在药店：80%概率购买避孕用品
+      if (Math.random() < 0.8) {
+        // 优先选择避孕用品
+        const contraceptives = affordableProducts.filter(prod => 
+          prod.id === 'birth_control_pills' || 
+          prod.id === 'contraceptive_patch' || 
+          prod.id === 'condoms'
+        );
+        if (contraceptives.length > 0) {
+          // 优先选择最便宜的避孕用品（更实用）
+          const cheapest = contraceptives.reduce((min, prod) => 
+            prod.price < min.price ? prod : min
+          );
+          return cheapest;
+        }
+      }
+    }
+    
     // 特性影响：爱钱和小气的人倾向于选择便宜的商品
     if (p.hasTrait('money-loving') || p.hasTrait('stingy')) {
       // 优先选择最便宜的商品
@@ -2124,117 +2210,65 @@ export class GameEngine {
       p.isDrunk = false;
       p.drunkEndTime = undefined;
       p.currentAction = '发呆';
+      
+      // 如果还在酒店，清除酒店状态
+      if (p.isInHotel) {
+        if (p.hotelWith) {
+          const hotelPartner = this.state.chars.find(x => x.name === p.hotelWith);
+          if (hotelPartner && hotelPartner.isInHotel && hotelPartner.hotelWith === p.name) {
+            hotelPartner.isInHotel = false;
+            hotelPartner.hotelWith = undefined;
+            hotelPartner.currentAction = '发呆';
+          }
+        }
+        p.isInHotel = false;
+        p.hotelWith = undefined;
+      }
+      
       this.log(`[✅清醒] **${p.name}** 酒醒了，恢复了意识。`, 'event');
       return;
     }
     
     // 处理喝晕后的情况
-    // 70%概率被其他人带走开房，30%概率睡在马路上
-    if (Math.random() < 0.7) {
-      // 被其他人带走开房
+    // 如果已经在酒店开房，不能再被其他人带走
+    if (p.isInHotel) {
+      // 已经在酒店，不再处理
+      return;
+    }
+    
+    // 如果睡在马路上，可以被其他人带回家或带去开房
+    if (p.currentAction.includes('睡在马路上')) {
+      // 睡在马路上，可以被其他人带走
       const availableChars = this.state.chars.filter(c => 
         c.name !== p.name && 
         !c.isDrunk && 
-        !c.interactingWith
+        !c.interactingWith &&
+        !c.isInHotel // 已经在酒店的人不能带走别人
+      );
+      
+      if (availableChars.length > 0 && Math.random() < 0.5) {
+        // 50%概率被其他人带走
+        const taker = choose(availableChars);
+        this.takeDrunkHomeOrHotel(p, taker);
+        return;
+      }
+      // 继续睡在马路上
+      return;
+    }
+    
+    // 刚喝晕：70%概率被其他人带走开房或回家，30%概率睡在马路上
+    if (Math.random() < 0.7) {
+      // 被其他人带走开房或回家
+      const availableChars = this.state.chars.filter(c => 
+        c.name !== p.name && 
+        !c.isDrunk && 
+        !c.interactingWith &&
+        !c.isInHotel // 已经在酒店的人不能带走别人
       );
       
       if (availableChars.length > 0) {
         const taker = choose(availableChars);
-        
-        // 建立关系（如果还没有）
-        if (!p.relationships[taker.name]) {
-          p.relationships[taker.name] = { love: 0, status: 'stranger' };
-        }
-        if (!taker.relationships[p.name]) {
-          taker.relationships[p.name] = { love: 0, status: 'stranger' };
-        }
-        
-        const pRel = p.relationships[taker.name];
-        const tRel = taker.relationships[p.name];
-        
-        // 增加好感度（被带走的人对带走的人好感度增加）
-        pRel.love = Math.min(100, pRel.love + rand(5, 15));
-        tRel.love = Math.min(100, tRel.love + rand(3, 10));
-        
-        // 更新关系状态
-        if (pRel.status === 'stranger' && pRel.love > 10) {
-          pRel.status = 'friend';
-          tRel.status = 'friend';
-        }
-        
-        // 检查是否去酒店开房
-        const hotel = this.state.buildings.find(b => b.id === 'hotel' && b.isBuilt);
-        if (hotel && hotel.isOpen(Math.floor(this.state.gameTime / 60), this.state.gameDay)) {
-          // 去酒店开房
-          // 选择房间（随机选择，但需要有钱）
-          const rooms = hotel.products || [];
-          if (rooms.length > 0) {
-            const affordableRooms = rooms.filter(r => taker.money >= r.price);
-            if (affordableRooms.length > 0) {
-              const selectedRoom = choose(affordableRooms);
-              const roomPrice = Math.floor(selectedRoom.price); // 确保价格是整数
-              taker.money -= roomPrice;
-              
-              // 分配收入
-              if (hotel.staff.length > 0) {
-                this.distributeRevenue(hotel, roomPrice);
-                hotel.totalRevenue += roomPrice;
-              }
-              
-              // 可能发生关系（根据性格和特性）
-              let intimacyChance = 0.3; // 基础概率30%
-              if (p.hasTrait('promiscuous') || taker.hasTrait('promiscuous')) {
-                intimacyChance = 0.6; // 淫乱特性概率更高
-              }
-              if (pRel.love > 50) {
-                intimacyChance += 0.2; // 好感度高概率更高
-              }
-              
-              if (Math.random() < intimacyChance) {
-                // 发生关系
-                p.sexCount = (p.sexCount || 0) + 1;
-                taker.sexCount = (taker.sexCount || 0) + 1;
-                p.happiness = Math.min(100, p.happiness + rand(10, 20));
-                taker.happiness = Math.min(100, taker.happiness + rand(8, 15));
-                pRel.love = Math.min(100, pRel.love + rand(5, 10));
-                tRel.love = Math.min(100, tRel.love + rand(5, 10));
-                
-                // 可能怀孕
-                if (Math.random() < 0.3 && !p.pregnant && !taker.pregnant) {
-                  const whoGetsPregnant = Math.random() < 0.5 ? p : taker;
-                  const other = whoGetsPregnant === p ? taker : p;
-                  if (whoGetsPregnant.contraceptives <= 0) {
-                    // 怀孕280天（约9个月）
-                    const pregnancyDuration = 280 * 24 * 60; // 转换为分钟
-                    whoGetsPregnant.pregnant = {
-                      father: other.name,
-                      dueDate: this.getAbsoluteTime() + pregnancyDuration
-                    };
-                    this.log(`[🤰怀孕] **${whoGetsPregnant.name}** 在酒店和 **${other.name}** 发生关系后怀孕了！`, 'drama');
-                  }
-                }
-                
-                this.log(`[🔥开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系...`, 'drama');
-              } else {
-                this.log(`[🏨开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}休息。`, 'event');
-              }
-              
-              p.currentAction = `🍺 被 ${taker.name} 带到酒店`;
-              taker.currentAction = `🏨 和 ${p.name} 在酒店`;
-              p.interactingWith = taker.name;
-              taker.interactingWith = p.name;
-            } else {
-              // 没钱开房，睡在马路上
-              this.handleSleepOnStreet(p);
-            }
-          } else {
-            // 没有房间，睡在马路上
-            this.handleSleepOnStreet(p);
-          }
-        } else {
-          // 酒店没开或不存在，睡在马路上
-          this.handleSleepOnStreet(p);
-        }
+        this.takeDrunkHomeOrHotel(p, taker);
       } else {
         // 没有其他人，睡在马路上
         this.handleSleepOnStreet(p);
@@ -2245,38 +2279,172 @@ export class GameEngine {
     }
   }
   
+  // 带喝晕的人回家或去酒店
+  takeDrunkHomeOrHotel(p: Character, taker: Character) {
+    // 如果已经在酒店，不能再被带走
+    if (p.isInHotel || taker.isInHotel) {
+      return;
+    }
+    
+    // 建立关系（如果还没有）
+    if (!p.relationships[taker.name]) {
+      p.relationships[taker.name] = { love: 0, status: 'stranger' };
+    }
+    if (!taker.relationships[p.name]) {
+      taker.relationships[p.name] = { love: 0, status: 'stranger' };
+    }
+    
+    const pRel = p.relationships[taker.name];
+    const tRel = taker.relationships[p.name];
+    
+    // 增加好感度（被带走的人对带走的人好感度增加）
+    pRel.love = Math.min(100, pRel.love + rand(5, 15));
+    tRel.love = Math.min(100, tRel.love + rand(3, 10));
+    
+    // 更新关系状态
+    if (pRel.status === 'stranger' && pRel.love > 10) {
+      pRel.status = 'friend';
+      tRel.status = 'friend';
+    }
+    
+    // 决定是带回家还是去酒店开房
+    const hotel = this.state.buildings.find(b => b.id === 'hotel' && b.isBuilt);
+    const canGoToHotel = hotel && hotel.isOpen(Math.floor(this.state.gameTime / 60), this.state.gameDay);
+    
+    // 如果有酒店且有钱，60%概率去酒店，40%概率带回家
+    // 如果没有酒店或没钱，100%带回家
+    let goToHotel = false;
+    if (canGoToHotel) {
+      const rooms = hotel!.products || [];
+      if (rooms.length > 0) {
+        const affordableRooms = rooms.filter(r => taker.money >= r.price);
+        if (affordableRooms.length > 0 && Math.random() < 0.6) {
+          goToHotel = true;
+        }
+      }
+    }
+    
+    if (goToHotel) {
+      // 去酒店开房
+      const rooms = hotel!.products || [];
+      const affordableRooms = rooms.filter(r => taker.money >= r.price);
+      const selectedRoom = choose(affordableRooms);
+      const roomPrice = Math.floor(selectedRoom.price);
+      taker.money -= roomPrice;
+      
+      // 分配收入
+      if (hotel!.staff.length > 0) {
+        this.distributeRevenue(hotel!, roomPrice);
+        hotel!.totalRevenue += roomPrice;
+      }
+      
+      // 设置酒店状态
+      p.isInHotel = true;
+      p.hotelWith = taker.name;
+      taker.isInHotel = true;
+      taker.hotelWith = p.name;
+      
+      // 可能发生关系（根据性格和特性）
+      let intimacyChance = 0.3; // 基础概率30%
+      if (p.hasTrait('promiscuous') || taker.hasTrait('promiscuous')) {
+        intimacyChance = 0.6; // 淫乱特性概率更高
+      }
+      if (pRel.love > 50) {
+        intimacyChance += 0.2; // 好感度高概率更高
+      }
+      
+      if (Math.random() < intimacyChance) {
+        // 发生关系
+        p.sexCount = (p.sexCount || 0) + 1;
+        taker.sexCount = (taker.sexCount || 0) + 1;
+        p.happiness = Math.min(100, p.happiness + rand(10, 20));
+        taker.happiness = Math.min(100, taker.happiness + rand(8, 15));
+        pRel.love = Math.min(100, pRel.love + rand(5, 10));
+        tRel.love = Math.min(100, tRel.love + rand(5, 10));
+        
+        // 可能怀孕
+        if (Math.random() < 0.3 && !p.pregnant && !taker.pregnant) {
+          const whoGetsPregnant = Math.random() < 0.5 ? p : taker;
+          const other = whoGetsPregnant === p ? taker : p;
+          if (whoGetsPregnant.contraceptives <= 0) {
+            // 怀孕280天（约9个月）
+            const pregnancyDuration = 280 * 24 * 60; // 转换为分钟
+            whoGetsPregnant.pregnant = {
+              father: other.name,
+              dueDate: this.getAbsoluteTime() + pregnancyDuration
+            };
+            this.log(`[🤰怀孕] **${whoGetsPregnant.name}** 在酒店和 **${other.name}** 发生关系后怀孕了！`, 'drama');
+          }
+        }
+        
+        this.log(`[🔥开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系...`, 'drama');
+      } else {
+        this.log(`[🏨开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}休息。`, 'event');
+      }
+      
+      p.currentAction = `🍺 被 ${taker.name} 带到酒店`;
+      taker.currentAction = `🏨 和 ${p.name} 在酒店`;
+      p.interactingWith = taker.name;
+      taker.interactingWith = p.name;
+    } else {
+      // 带回家
+      p.currentAction = `🏠 被 ${taker.name} 带回家`;
+      taker.currentAction = `🏠 带 ${p.name} 回家`;
+      p.interactingWith = taker.name;
+      taker.interactingWith = p.name;
+      p.happiness = Math.min(100, p.happiness + rand(5, 10));
+      taker.happiness = Math.min(100, taker.happiness + rand(3, 8));
+      this.log(`[🏠带回家] **${taker.name}** 把喝晕的 **${p.name}** 带回了家照顾。`, 'event');
+    }
+  }
+
   // 处理睡在马路上
   handleSleepOnStreet(p: Character) {
     p.currentAction = '😴 睡在马路上';
     p.happiness = Math.max(0, p.happiness - rand(5, 15)); // 降低心情
     
-    // 可能被其他人发现（增加戏剧性）
+    // 可能被其他人发现并带走（增加戏剧性）
     if (Math.random() < 0.3) {
-      const discoverer = choose(this.state.chars.filter(c => c.name !== p.name));
-      if (discoverer) {
-        // 建立关系（如果还没有）
-        if (!p.relationships[discoverer.name]) {
-          p.relationships[discoverer.name] = { love: 0, status: 'stranger' };
-        }
-        if (!discoverer.relationships[p.name]) {
-          discoverer.relationships[p.name] = { love: 0, status: 'stranger' };
-        }
-        
-        const pRel = p.relationships[discoverer.name];
-        const dRel = discoverer.relationships[p.name];
-        
-        // 发现者可能帮助或嘲笑
+      const availableChars = this.state.chars.filter(c => 
+        c.name !== p.name && 
+        !c.isDrunk && 
+        !c.interactingWith &&
+        !c.isInHotel // 已经在酒店的人不能带走别人
+      );
+      
+      if (availableChars.length > 0) {
+        const discoverer = choose(availableChars);
+        // 50%概率被带走，50%概率只是发现
         if (Math.random() < 0.5) {
-          // 帮助（增加好感度）
-          pRel.love = Math.min(100, pRel.love + rand(3, 8));
-          dRel.love = Math.min(100, dRel.love + rand(2, 5));
-          p.happiness = Math.min(100, p.happiness + rand(3, 8));
-          this.log(`[💚帮助] **${discoverer.name}** 发现了睡在马路上的 **${p.name}**，并帮助了他。`, 'event');
+          // 被带走
+          this.takeDrunkHomeOrHotel(p, discoverer);
+          return;
         } else {
-          // 嘲笑（降低好感度）
-          pRel.love = Math.max(0, pRel.love - rand(2, 5));
-          dRel.love = Math.max(0, dRel.love - rand(1, 3));
-          this.log(`[😄嘲笑] **${discoverer.name}** 发现了睡在马路上的 **${p.name}**，并嘲笑了他。`, 'drama');
+          // 只是发现
+          // 建立关系（如果还没有）
+          if (!p.relationships[discoverer.name]) {
+            p.relationships[discoverer.name] = { love: 0, status: 'stranger' };
+          }
+          if (!discoverer.relationships[p.name]) {
+            discoverer.relationships[p.name] = { love: 0, status: 'stranger' };
+          }
+          
+          const pRel = p.relationships[discoverer.name];
+          const dRel = discoverer.relationships[p.name];
+          
+          // 发现者可能帮助或嘲笑
+          if (Math.random() < 0.5) {
+            // 帮助（增加好感度）
+            pRel.love = Math.min(100, pRel.love + rand(3, 8));
+            dRel.love = Math.min(100, dRel.love + rand(2, 5));
+            p.happiness = Math.min(100, p.happiness + rand(3, 8));
+            this.log(`[💚帮助] **${discoverer.name}** 发现了睡在马路上的 **${p.name}**，并帮助了他。`, 'event');
+          } else {
+            // 嘲笑（降低好感度）
+            pRel.love = Math.max(0, pRel.love - rand(2, 5));
+            dRel.love = Math.max(0, dRel.love - rand(1, 3));
+            this.log(`[😄嘲笑] **${discoverer.name}** 发现了睡在马路上的 **${p.name}**，并嘲笑了他。`, 'drama');
+          }
         }
       }
     } else {
@@ -3237,7 +3405,16 @@ export class GameEngine {
     if (hospital && char.money >= cost) {
       // 在医院堕胎
       char.money -= cost;
+      
+      // 分配收入给医院工作人员
+      if (hospital.staff.length > 0) {
+        this.distributeRevenue(hospital, cost);
+      } else {
+        // 没有员工，收入进入镇库
+        this.state.townMoney += cost;
+      }
       hospital.totalRevenue += cost;
+      
       this.log(`[🏥手术] ${char.name} 在医院进行了堕胎手术，花费 💰${cost}`, 'event');
     } else {
       // 在家堕胎（免费但风险）
@@ -3257,7 +3434,16 @@ export class GameEngine {
     if (hospital && char.money >= cost) {
       // 在医院分娩
       char.money -= cost;
+      
+      // 分配收入给医院工作人员
+      if (hospital.staff.length > 0) {
+        this.distributeRevenue(hospital, cost);
+      } else {
+        // 没有员工，收入进入镇库
+        this.state.townMoney += cost;
+      }
       hospital.totalRevenue += cost;
+      
       this.log(`[🏥手术] ${char.name} 在医院进行了分娩手术，花费 💰${cost}，孩子父亲是 ${fatherName}`, 'event');
     } else {
       // 在家分娩（免费但风险）

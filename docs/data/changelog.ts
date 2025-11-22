@@ -7,9 +7,22 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.3';
+export const GAME_VERSION = '1.3.1';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.3.1',
+    date: '2025/11/22',
+    added: [
+      '居民卡片和档案显示年龄信息',
+      '医院建筑详情显示医疗服务（堕胎手术、分娩手术）',
+      '药店建筑详情显示药品售卖（避孕药、避孕贴、避孕套）'
+    ],
+    changed: [
+      '更新"猫の星空登陆舱"预设：添加初始居民"湫白"，移除"哈基米"',
+      '优化建筑详情显示：为不同建筑类型显示对应的商品/服务标题'
+    ]
+  },
   {
     version: '1.3',
     date: '2025/11/22 7:31',

@@ -107,6 +107,10 @@ const getChildAge = (childName: string) => {
               <div class="profile-stat-label">可信度</div>
             </div>
             <div class="profile-stat-item">
+              <div class="profile-stat-value">🎂 {{ character.age !== undefined ? character.age : '未知' }}岁</div>
+              <div class="profile-stat-label">年龄</div>
+            </div>
+            <div class="profile-stat-item">
               <div class="profile-stat-value">{{ character.currentAction || '发呆' }}</div>
               <div class="profile-stat-label">当前状态</div>
             </div>

@@ -111,6 +111,7 @@ onUnmounted(() => {
         <span class="personality-badge">
           {{ char.personality.name }}
         </span>
+        <span class="age-badge" v-if="char.age !== undefined">🎂 {{ char.age }}岁</span>
       </div>
       <div class="char-money">💰{{ char.money }}</div>
     </div>
@@ -245,6 +246,27 @@ onUnmounted(() => {
 :global(.dark-mode) .personality-badge {
   background: #404040;
   color: #b0b0b0;
+}
+
+.age-badge {
+  font-size: 9px;
+  background: #fef3c7;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: #92400e;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .age-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}
+
+:global(.dark-mode) .age-badge {
+  background: #78350f;
+  color: #fbbf24;
 }
 
 .traits-section {

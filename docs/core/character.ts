@@ -76,6 +76,8 @@ export class Character {
   maxAge: number; // 最大寿命（岁），默认100
   isDead: boolean; // 是否已死亡
   townHappiness: number; // 对城镇的幸福感 (0-100)，影响是否离开城镇
+  isInHotel?: boolean; // 是否在酒店开房
+  hotelWith?: string; // 和谁一起在酒店
   
   // 选举相关的临时属性（不持久化）
   bribedBy?: string; // 被谁收买

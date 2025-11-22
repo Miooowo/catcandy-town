@@ -59,7 +59,7 @@ const refreshTownName = () => {
 const PRESETS: Record<string, { townName: string; characterNames: string[] }> = {
   '592700690': {
     townName: '猫の星空登陆舱',
-    characterNames: ['耄耋', '曼波', '哈基米', '果猫', '暖泪', '沐夏', 'sans', '时苏', '小睿', '斗罗1654e', '云绒', '抉']
+    characterNames: ['耄耋', '曼波', '湫白', '果猫', '暖泪', '沐夏', 'sans', '时苏', '小睿', '斗罗1654e', '云绒', '抉']
   },
   '233906077': {
     townName: '快乐小镇',

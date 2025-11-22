@@ -219,6 +219,8 @@ const handleUpgrade = () => {
           <h4 v-if="building.id === 'bar'">🍺 售卖商品</h4>
           <h4 v-else-if="building.id === 'hotel'">🏨 房间选择</h4>
           <h4 v-else-if="building.id === 'cinema'">🎬 正在热映</h4>
+          <h4 v-else-if="building.id === 'hospital'">🏥 医疗服务</h4>
+          <h4 v-else-if="building.id === 'pharmacy'">💊 药品售卖</h4>
           <h4 v-else>🛒 商品/服务</h4>
           <div class="products-list">
             <div v-for="(product, index) in building.products" :key="index" class="product-item">
