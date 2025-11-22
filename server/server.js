@@ -238,10 +238,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`服务器运行在端口 ${PORT}`);
-  console.log(`访问 http://localhost:${PORT} 查看服务器状态`);
-});
 
 // 健康检查端点
 app.get('/health', (req, res) => {
@@ -250,5 +246,25 @@ app.get('/health', (req, res) => {
     towns: towns.size,
     timestamp: Date.now()
   });
+});
+
+// 根路径 - 返回服务器状态信息
+app.get('/', (req, res) => {
+  res.json({
+    name: '猫果镇物语 - 多人联机服务器',
+    status: 'running',
+    version: '1.0.0',
+    towns: towns.size,
+    timestamp: Date.now(),
+    endpoints: {
+      health: '/health',
+      socket: 'Socket.io 连接'
+    }
+  });
+});
+
+server.listen(PORT, () => {
+  console.log(`服务器运行在端口 ${PORT}`);
+  console.log(`访问 http://localhost:${PORT} 查看服务器状态`);
 });
 
