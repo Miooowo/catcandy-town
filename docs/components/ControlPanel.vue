@@ -58,6 +58,7 @@ const emit = defineEmits<{
   (e: 'show-relationship-tree'): void;
   (e: 'show-changelog'): void;
   (e: 'show-multiplayer'): void;
+  (e: 'show-rankings'): void;
 }>();
 
 const handleShowRelationshipTree = () => {
@@ -70,6 +71,10 @@ const handleShowChangelog = () => {
 
 const handleShowMultiplayer = () => {
   emit('show-multiplayer');
+};
+
+const handleShowRankings = () => {
+  emit('show-rankings');
 };
 
 const handleChangeObserverName = () => {
@@ -148,6 +153,7 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
         <button @click="handleImportSave" class="btn-import">📤 导入</button>
         <button @click="handleCreateCharacter" class="btn-add-char" title="添加新角色">➕ 添加角色</button>
         <button @click="handleShowRelationshipTree" class="btn-relationship" title="查看关系谱">👥 关系谱</button>
+        <button @click="handleShowRankings" class="btn-rankings" title="查看榜单">📊 榜单</button>
         <button @click="handleShowChangelog" class="btn-changelog" title="查看更新日志">📋 更新日志</button>
         <button @click="handleShowMultiplayer" class="btn-multiplayer" title="多人联机">🌐 多人模式</button>
         <button @click="handleChangeObserverName" class="btn-observer" title="更改旁观者名称">👤 旁观者名</button>

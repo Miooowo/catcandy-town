@@ -1482,10 +1482,14 @@ export class GameEngine {
         const bossName = building.staff[0]; // 第一个员工是老板
         if (bossName && bossName !== p.name) {
           const boss = this.state.chars.find(c => c.name === bossName);
-          if (boss) {
-            // 老板发现摸鱼的概率
-            const catchChance = 0.3;
-            if (Math.random() < catchChance) {
+        if (boss) {
+          // 老板发现摸鱼的概率
+          let catchChance = 0.3;
+          // 机智特质：摸鱼时更难被老板抓到
+          if (p.hasTrait('clever')) {
+            catchChance *= 0.5; // 机智的人被抓概率降低50%
+          }
+          if (Math.random() < catchChance) {
               caughtSlacking = true;
               // 摸鱼被抓：心情下降更多
               p.happiness -= 2;
@@ -1597,12 +1601,19 @@ export class GameEngine {
     
     // 清除员工的工作
     employee.job = null;
-    employee.currentAction = "失业中";
+    employee.currentAction = "失业中（冷静期）";
+    
+    // 设置辞职冷静期（5天，和主动辞职一样）
+    const cooldownDays = 5;
+    const cooldownMinutes = cooldownDays * 24 * 60;
+    employee.resignationCooldown = this.getAbsoluteTime() + cooldownMinutes;
+    employee.lastResignedBuilding = building.id;
+    employee.lastResignedTime = this.getAbsoluteTime();
     
     // 清除摸鱼记录
     delete employee.slackingOffCount[building.id];
     
-    this.log(`[💼开除] **${bossName}** 开除了 **${employee.name}**，因为他在 **${building.name}** 多次摸鱼被抓！`, 'drama');
+    this.log(`[💼开除] **${bossName}** 开除了 **${employee.name}**，因为他在 **${building.name}** 多次摸鱼被抓！**${employee.name}** 进入5天冷静期，期间不能工作。`, 'drama');
     
     // 自动招聘新员工
     this.hireNewEmployee(building);
@@ -2414,6 +2425,12 @@ export class GameEngine {
       return;
     }
     
+    // 如果已经被带回家，不能再被其他人带走
+    if (p.interactingWith && p.currentAction.includes('被') && p.currentAction.includes('带回家')) {
+      // 已经被带回家，不再处理
+      return;
+    }
+    
     // 刚喝晕：70%概率被其他人带走开房或回家，30%概率睡在马路上
     if (Math.random() < 0.7) {
       // 被其他人带走开房或回家
@@ -2421,7 +2438,8 @@ export class GameEngine {
         c.name !== p.name && 
         !c.isDrunk && 
         !c.interactingWith &&
-        !c.isInHotel // 已经在酒店的人不能带走别人
+        !c.isInHotel && // 已经在酒店的人不能带走别人
+        !p.interactingWith // 如果已经被其他人带走，不能再被带走
       );
       
       if (availableChars.length > 0) {
@@ -2441,6 +2459,11 @@ export class GameEngine {
   takeDrunkHomeOrHotel(p: Character, taker: Character) {
     // 如果已经在酒店，不能再被带走
     if (p.isInHotel || taker.isInHotel) {
+      return;
+    }
+    
+    // 如果已经被其他人带回家，不能再被带走
+    if (p.interactingWith && p.interactingWith !== taker.name && p.currentAction.includes('被') && p.currentAction.includes('带回家')) {
       return;
     }
     
@@ -2521,8 +2544,35 @@ export class GameEngine {
         taker.sexCount = (taker.sexCount || 0) + 1;
         p.happiness = Math.min(100, p.happiness + rand(10, 20));
         taker.happiness = Math.min(100, taker.happiness + rand(8, 15));
-        pRel.love = Math.min(100, pRel.love + rand(5, 10));
-        tRel.love = Math.min(100, tRel.love + rand(5, 10));
+        
+        // 被发生方非淫乱特质发生关系会降低发生者的好感
+        if (!p.hasTrait('promiscuous')) {
+          // 非淫乱特质：降低发生者的好感
+          tRel.love = Math.max(0, tRel.love - rand(10, 20));
+          pRel.love = Math.min(100, pRel.love + rand(3, 8)); // 被发生方可能稍微增加好感（因为被照顾）
+          this.log(`[💔开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系，但 **${p.name}** 对此感到不满，**${taker.name}** 的好感度下降了。`, 'drama');
+        } else {
+          // 淫乱特质：有小的概率降低对方的好感，也有概率发展成炮友
+          if (Math.random() < 0.3) {
+            // 30%概率降低对方的好感
+            tRel.love = Math.max(0, tRel.love - rand(5, 10));
+            pRel.love = Math.min(100, pRel.love + rand(3, 8));
+            this.log(`[💔开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系，但 **${p.name}** 对此感到不满，**${taker.name}** 的好感度下降了。`, 'drama');
+          } else {
+            // 70%概率增加好感
+            pRel.love = Math.min(100, pRel.love + rand(5, 10));
+            tRel.love = Math.min(100, tRel.love + rand(5, 10));
+            
+            // 有概率发展成炮友
+            if (Math.random() < 0.4 && !p.fwbList.includes(taker.name) && !taker.fwbList.includes(p.name)) {
+              p.fwbList.push(taker.name);
+              taker.fwbList.push(p.name);
+              this.log(`[💋开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系，两人发展成了炮友关系！`, 'drama');
+            } else {
+              this.log(`[🔥开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系...`, 'drama');
+            }
+          }
+        }
         
         // 可能怀孕
         if (Math.random() < 0.3 && !p.pregnant && !taker.pregnant) {
@@ -2538,8 +2588,6 @@ export class GameEngine {
             this.log(`[🤰怀孕] **${whoGetsPregnant.name}** 在酒店和 **${other.name}** 发生关系后怀孕了！`, 'drama');
           }
         }
-        
-        this.log(`[🔥开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系...`, 'drama');
       } else {
         this.log(`[🏨开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}休息。`, 'event');
       }
@@ -2549,14 +2597,86 @@ export class GameEngine {
       p.interactingWith = taker.name;
       taker.interactingWith = p.name;
     } else {
-      // 带回家
-      p.currentAction = `🏠 被 ${taker.name} 带回家`;
-      taker.currentAction = `🏠 带 ${p.name} 回家`;
-      p.interactingWith = taker.name;
-      taker.interactingWith = p.name;
-      p.happiness = Math.min(100, p.happiness + rand(5, 10));
-      taker.happiness = Math.min(100, taker.happiness + rand(3, 8));
-      this.log(`[🏠带回家] **${taker.name}** 把喝晕的 **${p.name}** 带回了家照顾。`, 'event');
+      // 带回家：可以照顾或发生关系
+      // 决定是照顾还是发生关系
+      let intimacyChance = 0.3; // 基础概率30%
+      if (p.hasTrait('promiscuous') || taker.hasTrait('promiscuous')) {
+        intimacyChance = 0.6; // 淫乱特质概率更高
+      }
+      // 胆小特质大幅降低概率
+      if (p.hasTrait('coward') || taker.hasTrait('coward')) {
+        intimacyChance *= 0.2; // 胆小的人抗拒，概率大幅降低
+      }
+      if (pRel.love > 50) {
+        intimacyChance += 0.2; // 好感度高概率更高
+      }
+      
+      if (Math.random() < intimacyChance) {
+        // 发生关系
+        p.sexCount = (p.sexCount || 0) + 1;
+        taker.sexCount = (taker.sexCount || 0) + 1;
+        p.happiness = Math.min(100, p.happiness + rand(10, 20));
+        taker.happiness = Math.min(100, taker.happiness + rand(8, 15));
+        
+        // 被发生方非淫乱特质发生关系会降低发生者的好感
+        if (!p.hasTrait('promiscuous')) {
+          // 非淫乱特质：降低发生者的好感
+          tRel.love = Math.max(0, tRel.love - rand(10, 20));
+          this.log(`[💔发生关系] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系，但 **${p.name}** 对此感到不满，**${taker.name}** 的好感度下降了。`, 'drama');
+        } else {
+          // 淫乱特质：有小的概率降低对方的好感，也有概率发展成炮友
+          if (Math.random() < 0.3) {
+            // 30%概率降低对方的好感
+            tRel.love = Math.max(0, tRel.love - rand(5, 10));
+            this.log(`[💔发生关系] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系，但 **${p.name}** 对此感到不满，**${taker.name}** 的好感度下降了。`, 'drama');
+          } else {
+            // 70%概率增加好感
+            pRel.love = Math.min(100, pRel.love + rand(5, 10));
+            tRel.love = Math.min(100, tRel.love + rand(5, 10));
+            
+            // 有概率发展成炮友
+            if (Math.random() < 0.4 && !p.fwbList.includes(taker.name) && !taker.fwbList.includes(p.name)) {
+              p.fwbList.push(taker.name);
+              taker.fwbList.push(p.name);
+              this.log(`[💋发展炮友] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系，两人发展成了炮友关系！`, 'drama');
+            } else {
+              this.log(`[🔥发生关系] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系...`, 'drama');
+            }
+          }
+        }
+        
+        // 可能怀孕
+        if (Math.random() < 0.3 && !p.pregnant && !taker.pregnant) {
+          const whoGetsPregnant = Math.random() < 0.5 ? p : taker;
+          const other = whoGetsPregnant === p ? taker : p;
+          if (whoGetsPregnant.contraceptives <= 0) {
+            // 怀孕280天（约9个月）
+            const pregnancyDuration = 280 * 24 * 60; // 转换为分钟
+            whoGetsPregnant.pregnant = {
+              father: other.name,
+              dueDate: this.getAbsoluteTime() + pregnancyDuration
+            };
+            this.log(`[🤰怀孕] **${whoGetsPregnant.name}** 在家中和 **${other.name}** 发生关系后怀孕了！`, 'drama');
+          }
+        }
+        
+        p.currentAction = `🏠 被 ${taker.name} 带回家`;
+        taker.currentAction = `🏠 带 ${p.name} 回家`;
+        p.interactingWith = taker.name;
+        taker.interactingWith = p.name;
+      } else {
+        // 带回家照顾：增加彼此好感
+        p.currentAction = `🏠 被 ${taker.name} 带回家`;
+        taker.currentAction = `🏠 带 ${p.name} 回家`;
+        p.interactingWith = taker.name;
+        taker.interactingWith = p.name;
+        p.happiness = Math.min(100, p.happiness + rand(5, 10));
+        taker.happiness = Math.min(100, taker.happiness + rand(3, 8));
+        // 增加彼此好感度
+        pRel.love = Math.min(100, pRel.love + rand(8, 15));
+        tRel.love = Math.min(100, tRel.love + rand(5, 10));
+        this.log(`[🏠带回家] **${taker.name}** 把喝晕的 **${p.name}** 带回了家照顾，彼此的好感度增加了。`, 'event');
+      }
     }
   }
 

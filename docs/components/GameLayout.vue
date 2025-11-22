@@ -15,6 +15,7 @@ import ChangelogModal from './ChangelogModal.vue';
 import StartPage from './StartPage.vue';
 import SaveSlotPage from './SaveSlotPage.vue';
 import MultiplayerModal from './MultiplayerModal.vue';
+import RankingsPage from './RankingsPage.vue';
 import type { Building } from '../core/building';
 
 // 直接解构 state 以便在模板使用
@@ -62,6 +63,9 @@ const showChangelog = ref(false);
 // 多人模式模态框状态
 const showMultiplayer = ref(false);
 
+// 榜单页面状态
+const showRankings = ref(false);
+
 // 存档页面状态
 const showSaveSlotPage = ref(false);
 // 开始页面状态
@@ -105,6 +109,14 @@ const openMultiplayer = () => {
 
 const closeMultiplayer = () => {
   showMultiplayer.value = false;
+};
+
+const openRankings = () => {
+  showRankings.value = true;
+};
+
+const closeRankings = () => {
+  showRankings.value = false;
 };
 
 // 从存档页面选择槽位
@@ -244,22 +256,12 @@ provide('toggleDarkMode', toggleDarkMode);
       @show-relationship-tree="openRelationshipTree"
       @show-changelog="openChangelog"
       @show-multiplayer="openMultiplayer"
+      @show-rankings="openRankings"
     />
 
     <div class="game-content">
-      <div class="section residents-section">
-        <h3 class="section-title">居民状态 ({{ state.chars.length }})</h3>
-        <div class="residents-grid">
-          <CharacterCard 
-            v-for="c in state.chars" 
-            :key="c.name" 
-            :char="c"
-            @click="openProfile(c)"
-          />
-        </div>
-      </div>
-
-      <div class="section buildings-section">
+      <!-- 左侧边栏：建筑列表 -->
+      <div class="section buildings-section sidebar">
         <h3 class="section-title">小镇建设</h3>
         <div class="buildings-list">
           <BuildingCard 
@@ -271,8 +273,22 @@ provide('toggleDarkMode', toggleDarkMode);
         </div>
       </div>
 
-      <LogPanel :logs="state.logs" class="section log-section" />
+      <!-- 中间主区域：居民状态 -->
+      <div class="section residents-section main-content">
+        <h3 class="section-title">居民状态 ({{ state.chars.length }})</h3>
+        <div class="residents-grid">
+          <CharacterCard 
+            v-for="c in state.chars" 
+            :key="c.name" 
+            :char="c"
+            @click="openProfile(c)"
+          />
+        </div>
+      </div>
     </div>
+
+    <!-- 底部：游戏日志 -->
+    <LogPanel :logs="state.logs" class="section log-section bottom-panel" />
 
     <CharacterProfile 
       :character="selectedCharacter"
@@ -312,6 +328,11 @@ provide('toggleDarkMode', toggleDarkMode);
       :visible="showMultiplayer"
       @close="closeMultiplayer"
     />
+    
+    <RankingsPage 
+      :visible="showRankings"
+      @close="closeRankings"
+    />
   </div>
 </template>
 
@@ -324,6 +345,8 @@ provide('toggleDarkMode', toggleDarkMode);
   flex-direction: column;
   gap: 12px;
   transition: background-color 0.3s ease, color 0.3s ease;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .game-wrapper.dark-mode {
@@ -335,7 +358,8 @@ provide('toggleDarkMode', toggleDarkMode);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: calc(100vh - 80px);
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -348,7 +372,6 @@ provide('toggleDarkMode', toggleDarkMode);
   .game-content {
     flex-direction: row;
     gap: 16px;
-    height: calc(100vh - 100px);
   }
 }
 
@@ -372,18 +395,40 @@ provide('toggleDarkMode', toggleDarkMode);
 }
 
 .residents-section {
-  flex: 2;
+  flex: 1;
   min-height: 200px;
 }
 
-.buildings-section {
+.main-content {
   flex: 1;
-  min-height: 150px;
+  min-height: 0;
 }
 
-.log-section {
-  flex: 1;
-  min-height: 150px;
+.sidebar {
+  width: 280px;
+  min-width: 280px;
+  flex-shrink: 0;
+}
+
+.bottom-panel {
+  height: 200px;
+  min-height: 200px;
+  max-height: 300px;
+  flex-shrink: 0;
+  margin-top: 12px;
+}
+
+@media (max-width: 767px) {
+  .sidebar {
+    width: 100%;
+    min-width: 100%;
+  }
+  
+  .bottom-panel {
+    height: 150px;
+    min-height: 150px;
+    max-height: 200px;
+  }
 }
 
 .section-title {

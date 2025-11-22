@@ -3,6 +3,18 @@ import { computed, ref } from 'vue';
 import { gameInstance } from '../core/game';
 import type { Character } from '../core/character';
 
+const props = defineProps<{
+  visible: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'close'): void;
+}>();
+
+const close = () => {
+  emit('close');
+};
+
 const activeTab = ref<'economy' | 'social'>('economy');
 
 // 经济榜：日均工资排行
@@ -104,9 +116,11 @@ const getRankIcon = (index: number) => {
 </script>
 
 <template>
-  <div class="rankings-page">
-    <div class="rankings-header">
-      <h1>📊 小镇榜单</h1>
+  <div v-if="visible" class="modal-overlay" @click.self="close">
+    <div class="rankings-page">
+      <div class="rankings-header">
+        <h1>📊 小镇榜单</h1>
+        <button class="modal-close" @click="close">×</button>
       <div class="tabs">
         <button 
           :class="{ active: activeTab === 'economy' }" 
@@ -252,25 +266,96 @@ const getRankIcon = (index: number) => {
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .rankings-page {
-  min-height: 100vh;
-  background: #f9fafb;
+  background: white;
+  border-radius: 12px;
+  max-width: 900px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+  position: relative;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: #666;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.modal-close:hover {
+  background: #f0f0f0;
+}
+
+:global(.dark-mode) .modal-close {
+  color: #ccc;
+}
+
+:global(.dark-mode) .modal-close:hover {
+  background: #3d3d3d;
+}
+
+.rankings-page {
   padding: 20px;
   transition: background-color 0.3s ease;
 }
 
 :global(.dark-mode) .rankings-page {
-  background: #1a1a1a;
+  background: #2d2d2d;
   color: #e5e5e5;
 }
 
 .rankings-header {
-  max-width: 1200px;
-  margin: 0 auto 30px;
+  margin-bottom: 20px;
+  position: relative;
 }
 
 .rankings-header h1 {

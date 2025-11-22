@@ -29,7 +29,8 @@ export const TRAITS: Trait[] = [
   { id: "stingy", name: "小气", desc: "消费时更谨慎，不太愿意花钱" },
   { id: "ambitious", name: "野心勃勃", desc: "更倾向于竞选职位，工作满意度要求更高" },
   { id: "content", name: "知足常乐", desc: "工作满意度下降较慢，更容易满足" },
-  { id: "coward", name: "胆小", desc: "胆小谨慎，害怕被草，抗拒酒店，成为炮友可能性更低，喝酒通常不会喝晕" }
+  { id: "coward", name: "胆小", desc: "胆小谨慎，害怕被草，抗拒酒店，成为炮友可能性更低，喝酒通常不会喝晕" },
+  { id: "clever", name: "机智", desc: "机智聪明，摸鱼时更难被老板抓到" }
 ];
 
 // 特质冲突组：同一组内的特质不能同时拥有
