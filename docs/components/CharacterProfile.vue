@@ -148,9 +148,9 @@ const getChildAge = (childName: string) => {
           </div>
         </div>
 
-        <!-- 性格与特性 -->
+        <!-- 性格与特质 -->
         <div class="profile-section">
-          <h4>🎭 性格与特性</h4>
+          <h4>🎭 性格与特质</h4>
           <div class="profile-row">
             <span class="profile-label">性格：</span>
             <span class="profile-value" :style="{ color: personalityColor }">
@@ -162,7 +162,7 @@ const getChildAge = (childName: string) => {
             <span class="profile-value">{{ character.personality.desc }}</span>
           </div>
           <div class="profile-row">
-            <span class="profile-label">特性：</span>
+            <span class="profile-label">特质：</span>
             <span class="profile-value" :style="{ color: character.traits.length > 0 ? '#333' : '#999' }">
               {{ character.traits.length > 0 ? character.traits.map(t => t.name).join('、') : '无' }}
             </span>

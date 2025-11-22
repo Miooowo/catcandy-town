@@ -411,6 +411,9 @@ export class GameEngine {
       // 检查怀孕进度（分娩和堕胎）
       this.checkPregnancyProgress();
       
+      // 检查抢劫事件（每小时检查一次）
+      this.checkRobbery();
+      
       // 检查年龄增长和死亡（每天检查一次）
       if (this.state.gameTime === 0) {
         this.checkAgeAndDeath();
@@ -863,7 +866,9 @@ export class GameEngine {
             // 确保新字段存在
             companyFunds: b.companyFunds ?? 0,
             level: b.level ?? 1,
-            baseSalary: b.baseSalary ?? 10
+            baseSalary: b.baseSalary ?? 10,
+            // 确保 products 从 blueprint 中恢复（如果存档中没有或为空）
+            products: b.products && b.products.length > 0 ? b.products : (blueprint.products || [])
           });
           return building;
         }).filter((b: any) => b !== null) as Building[];
@@ -1259,7 +1264,7 @@ export class GameEngine {
     }
 
     // A. 建设/工作/打零工/站街 (30%，爱钱的人提高到50%)
-    // 特性影响：淫乱特性的居民优先建造神秘洗脚店，喜欢睡觉的居民优先建造快捷酒店
+    // 特质影响：淫乱特质的居民优先建造神秘洗脚店，喜欢睡觉的居民优先建造快捷酒店
     let pendingBuilding: Building | undefined;
     if (p.hasTrait('promiscuous')) {
       // 优先查找神秘洗脚店
@@ -1298,7 +1303,7 @@ export class GameEngine {
       }
     }
     // B. 社交/恋爱 (50%，提高社交频率)
-    // 特性影响：社交达人更倾向社交，孤僻的人更倾向独处
+    // 特质影响：社交达人更倾向社交，孤僻的人更倾向独处
     else if (roll < 0.85) { // 从0.8提高到0.85，增加社交概率
       let socialChance = 1.0; // 默认100%进行社交
       if (p.hasTrait('social')) {
@@ -1690,7 +1695,7 @@ export class GameEngine {
     // 基础工作功率
     let workPower = rand(5, 15);
     
-    // 特性影响：勤奋的人工作更努力，懒惰和喜欢睡觉的人工作功率减少
+    // 特质影响：勤奋的人工作更努力，懒惰和喜欢睡觉的人工作功率减少
     if (p.hasTrait('hardworking')) {
       // 勤奋：工作功率增加30%
       workPower = Math.floor(workPower * 1.3);
@@ -1702,7 +1707,7 @@ export class GameEngine {
       workPower = Math.floor(workPower * 0.7);
     }
     
-    // 特性影响：建设喜爱的建筑时更快且贡献更多
+    // 特质影响：建设喜爱的建筑时更快且贡献更多
     const isFavoriteBuilding = this.isFavoriteBuilding(p, building);
     if (isFavoriteBuilding) {
       workPower = Math.floor(workPower * 1.5); // 增加50%的工作功率
@@ -2177,9 +2182,14 @@ export class GameEngine {
       drunkChance *= 0.7;
     }
     
-    // 特性影响：保守的人不太容易喝多
+    // 特质影响：保守的人不太容易喝多
     if (p.hasTrait('conservative')) {
       drunkChance *= 0.8;
+    }
+    
+    // 特质影响：胆小的人通常不会喝晕
+    if (p.hasTrait('coward')) {
+      drunkChance *= 0.3; // 胆小的人喝晕概率大幅降低
     }
     
     // 随机波动
@@ -2344,10 +2354,14 @@ export class GameEngine {
       taker.isInHotel = true;
       taker.hotelWith = p.name;
       
-      // 可能发生关系（根据性格和特性）
+      // 可能发生关系（根据性格和特质）
       let intimacyChance = 0.3; // 基础概率30%
       if (p.hasTrait('promiscuous') || taker.hasTrait('promiscuous')) {
-        intimacyChance = 0.6; // 淫乱特性概率更高
+        intimacyChance = 0.6; // 淫乱特质概率更高
+      }
+      // 胆小特质大幅降低概率（抗拒酒店挨操）
+      if (p.hasTrait('coward') || taker.hasTrait('coward')) {
+        intimacyChance *= 0.2; // 胆小的人抗拒酒店，概率大幅降低
       }
       if (pRel.love > 50) {
         intimacyChance += 0.2; // 好感度高概率更高
@@ -2580,9 +2594,14 @@ export class GameEngine {
       }
       // 好感度越高，概率越高
       intimacyChance += (pRel.love - 50) / 2000; // 最多再+2.5%
-      // 淫乱特性大幅增加概率
+      // 淫乱特质大幅增加概率
       if (p.hasTrait('promiscuous') || t.hasTrait('promiscuous')) {
         intimacyChance *= 2.5; // 淫乱的人概率翻2.5倍
+      }
+      
+      // 胆小特质大幅降低概率（害怕被草）
+      if (p.hasTrait('coward') || t.hasTrait('coward')) {
+        intimacyChance *= 0.2; // 胆小的人概率大幅降低
       }
       
       if (Math.random() < intimacyChance) {
@@ -2988,7 +3007,7 @@ export class GameEngine {
     switch (targetPersonality.name) {
       case '冲动': targetModifier = 20; break; // 冲动的人容易被说服
       case '浪漫': targetModifier = 15; break; // 浪漫的人容易被说服
-      case '胆小': targetModifier = 10; break; // 胆小的人容易被说服
+      case '胆小': targetModifier = -30; break; // 胆小的人害怕被草，很难被说服成为炮友
       case '乐观': targetModifier = 10; break; // 乐观的人容易被说服
       case '保守': targetModifier = -25; break; // 保守的人很难被说服
       case '理性': targetModifier = -20; break; // 理性的人很难被说服
@@ -2999,8 +3018,8 @@ export class GameEngine {
     }
     persuadeChance += targetModifier;
 
-    // 特性影响
-    // 说服者的特性
+    // 特质影响
+    // 说服者的特质
     if (persuader.hasTrait('social')) {
       persuadeChance += 10; // 社交达人更容易说服别人
     }
@@ -3008,7 +3027,7 @@ export class GameEngine {
       persuadeChance += 5; // 冲动的人说服时更直接
     }
 
-    // 被说服者的特性
+    // 被说服者的特质
     if (target.hasTrait('impulsive')) {
       persuadeChance += 15; // 冲动的人容易被说服
     }
@@ -3023,6 +3042,10 @@ export class GameEngine {
     }
     if (target.hasTrait('loner')) {
       persuadeChance -= 10; // 孤僻的人不太容易被说服
+    }
+    // 胆小特质：害怕被草，成为炮友的可能性比其他人更低
+    if (target.hasTrait('coward')) {
+      persuadeChance -= 40; // 胆小的人大幅降低成为炮友的概率
     }
 
     // 心情影响（心情好更容易被说服）
@@ -3586,6 +3609,129 @@ export class GameEngine {
         this.leaveTown(char);
       }
     });
+  }
+
+  // 检查抢劫事件
+  checkRobbery() {
+    const aliveChars = this.state.chars.filter(c => !c.isDead);
+    if (aliveChars.length < 2) return; // 至少需要2个人
+    
+    // 计算平均财富
+    const totalMoney = aliveChars.reduce((sum, c) => sum + c.money, 0);
+    const avgMoney = totalMoney / aliveChars.length;
+    
+    // 找出财富远高于平均的居民（超过平均值的3倍）
+    const richTargets = aliveChars.filter(c => c.money > avgMoney * 3 && c.money > 100);
+    
+    if (richTargets.length === 0) return;
+    
+    // 对每个富有的目标，检查是否被抢劫
+    richTargets.forEach(target => {
+      // 计算被抢劫的基础概率（财富越高，概率越高）
+      const wealthRatio = target.money / avgMoney;
+      let robberyChance = Math.min(0.3, (wealthRatio - 3) * 0.05); // 最高30%概率
+      
+      // 每小时检查一次，所以概率要除以60（约1.67%每小时）
+      robberyChance = robberyChance / 60;
+      
+      if (Math.random() < robberyChance) {
+        // 尝试抢劫
+        this.attemptRobbery(target, aliveChars);
+      }
+    });
+  }
+  
+  // 尝试抢劫
+  attemptRobbery(target: Character, allChars: Character[]) {
+    // 找出可能的抢劫者：爱钱且无业的人更容易去抢劫
+    const potentialRobbers = allChars.filter(c => 
+      c.name !== target.name &&
+      !c.isDead &&
+      c.hasTrait('money-loving') &&
+      !c.job && // 无业
+      c.money < target.money * 0.5 // 比目标穷很多
+    );
+    
+    // 如果没有符合条件的，也允许其他无业的人尝试（但概率更低）
+    if (potentialRobbers.length === 0) {
+      const otherRobbers = allChars.filter(c => 
+        c.name !== target.name &&
+        !c.isDead &&
+        !c.job &&
+        c.money < target.money * 0.5
+      );
+      if (otherRobbers.length === 0) return;
+      
+      // 非爱钱的人概率更低
+      if (Math.random() < 0.3) {
+        const robber = choose(otherRobbers);
+        this.executeRobbery(robber, target);
+      }
+    } else {
+      // 爱钱且无业的人更可能抢劫
+      const robber = choose(potentialRobbers);
+      this.executeRobbery(robber, target);
+    }
+  }
+  
+  // 执行抢劫
+  executeRobbery(robber: Character, target: Character) {
+    // 计算抢劫成功概率
+    let successChance = 0.5; // 基础成功率50%
+    
+    // 目标性格和特质影响：易怒且小气的人更不容易被抢劫
+    if (target.personality.name === '易怒' && target.hasTrait('stingy')) {
+      successChance *= 0.3; // 大幅降低成功率
+    } else if (target.personality.name === '易怒') {
+      successChance *= 0.6; // 易怒的人不容易被抢
+    } else if (target.hasTrait('stingy')) {
+      successChance *= 0.7; // 小气的人不容易被抢
+    }
+    
+    // 抢劫者性格影响
+    if (robber.personality.name === '勇敢') {
+      successChance *= 1.3; // 勇敢的人更容易成功
+    } else if (robber.personality.name === '胆小') {
+      successChance *= 0.5; // 胆小的人不容易成功
+    }
+    
+    if (Math.random() < successChance) {
+      // 抢劫成功
+      const robberyAmount = Math.floor(target.money * rand(1, 10) / 100); // 1%到10%
+      target.money = Math.max(0, target.money - robberyAmount);
+      robber.money += robberyAmount;
+      
+      // 降低好感度
+      if (!target.relationships[robber.name]) {
+        target.relationships[robber.name] = { love: 0, status: 'stranger' };
+      }
+      if (!robber.relationships[target.name]) {
+        robber.relationships[target.name] = { love: 0, status: 'stranger' };
+      }
+      target.relationships[robber.name].love = Math.max(0, target.relationships[robber.name].love - 30);
+      robber.relationships[target.name].love = Math.max(0, robber.relationships[target.name].love - 20);
+      
+      // 降低心情
+      target.happiness = Math.max(0, target.happiness - rand(10, 20));
+      robber.happiness = Math.min(100, robber.happiness + rand(5, 10));
+      
+      this.log(`[💰抢劫] **${robber.name}** 成功抢劫了 **${target.name}** 💰${robberyAmount}元！`, 'drama');
+    } else {
+      // 抢劫失败
+      if (!target.relationships[robber.name]) {
+        target.relationships[robber.name] = { love: 0, status: 'stranger' };
+      }
+      if (!robber.relationships[target.name]) {
+        robber.relationships[target.name] = { love: 0, status: 'stranger' };
+      }
+      target.relationships[robber.name].love = Math.max(0, target.relationships[robber.name].love - 10);
+      robber.relationships[target.name].love = Math.max(0, robber.relationships[target.name].love - 5);
+      
+      target.happiness = Math.max(0, target.happiness - rand(3, 8));
+      robber.happiness = Math.max(0, robber.happiness - rand(5, 10));
+      
+      this.log(`[❌抢劫失败] **${robber.name}** 试图抢劫 **${target.name}**，但失败了！`, 'reject');
+    }
   }
 
   // 居民离开城镇

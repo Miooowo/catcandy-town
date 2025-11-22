@@ -75,9 +75,9 @@ export const BUILDINGS_BLUEPRINT: BuildingBlueprint[] = [
     id: "pharmacy", name: "💊 药店", cost: 800, desc: "购买避孕用品", effect: "contraceptive",
     price: 0, open: 8, close: 22, jobs: ["药剂师"],
     products: [
-      { id: "birth_control_pills", name: "避孕药", price: 103 }, // 一盒20个
-      { id: "contraceptive_patch", name: "避孕贴", price: 75 }, // 一个
-      { id: "condoms", name: "避孕套", price: 40 } // 一盒12个
+      { id: "birth_control_pills", name: "避孕药 (20粒)", price: 103 },
+      { id: "contraceptive_patch", name: "避孕贴 (1个)", price: 75 },
+      { id: "condoms", name: "避孕套 (12个)", price: 40 }
     ]
   }
 ];

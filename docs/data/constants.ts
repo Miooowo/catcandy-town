@@ -28,13 +28,15 @@ export const TRAITS: Trait[] = [
   { id: "generous", name: "大方", desc: "消费时更舍得花钱，容易请客" },
   { id: "stingy", name: "小气", desc: "消费时更谨慎，不太愿意花钱" },
   { id: "ambitious", name: "野心勃勃", desc: "更倾向于竞选职位，工作满意度要求更高" },
-  { id: "content", name: "知足常乐", desc: "工作满意度下降较慢，更容易满足" }
+  { id: "content", name: "知足常乐", desc: "工作满意度下降较慢，更容易满足" },
+  { id: "coward", name: "胆小", desc: "胆小谨慎，害怕被草，抗拒酒店，成为炮友可能性更低，喝酒通常不会喝晕" }
 ];
 
-// 特性冲突组：同一组内的特性不能同时拥有
+// 特质冲突组：同一组内的特质不能同时拥有
 export const TRAIT_CONFLICTS: Record<string, string[]> = {
-  "hardworking": ["lazy"],
+  "hardworking": ["lazy", "sleepy"], // 勤奋与懒惰、喜欢睡觉冲突
   "lazy": ["hardworking"],
+  "sleepy": ["hardworking"], // 喜欢睡觉与勤奋冲突
   "social": ["loner"],
   "loner": ["social"],
   "romantic": ["conservative"],
@@ -47,7 +49,7 @@ export const TRAIT_CONFLICTS: Record<string, string[]> = {
   "content": ["ambitious"]
 };
 
-// 检查特性是否冲突
+// 检查特质是否冲突
 export function hasTraitConflict(existingTraitIds: string[], newTraitId: string): boolean {
   const conflicts = TRAIT_CONFLICTS[newTraitId] || [];
   return conflicts.some(conflictId => existingTraitIds.includes(conflictId));

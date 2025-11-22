@@ -95,12 +95,12 @@ export class Character {
     this.interactingWith = null;
     this.personality = choose(PERSONALITIES);
     
-    // 特性分配逻辑：
-    // 1. 如果没有特性，较大概率获得一个特性（70%）
-    // 2. 大概率再获得一个特性（80%）
-    // 3. 小概率额外获得一个特性（20%）
-    // 4. 极小概率额外获得一个特性（5%）
-    // 特性之间不能冲突
+    // 特质分配逻辑：
+    // 1. 如果没有特质，较大概率获得一个特质（70%）
+    // 2. 大概率再获得一个特质（80%）
+    // 3. 小概率额外获得一个特质（20%）
+    // 4. 极小概率额外获得一个特质（5%）
+    // 特质之间不能冲突
     this.traits = [];
     const existingTraitIds: string[] = [];
     
