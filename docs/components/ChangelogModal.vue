@@ -58,9 +58,11 @@ const sortedChangelog = computed(() => {
       <div class="changelog-content">
         <div 
           v-for="entry in sortedChangelog" 
-          :key="entry.version" 
+          :key="entry.version"
           class="changelog-entry"
         >
+          <div v-if="entry.title" class="changelog-title">{{ entry.title }}</div>
+          <div v-if="entry.title" class="changelog-title">{{ entry.title }}</div>
           <div class="entry-header">
             <span class="entry-version">v{{ entry.version }}</span>
             <span class="entry-date">{{ formatDate(entry.date) }}</span>

@@ -72,6 +72,9 @@ export class Character {
   currentTown?: string; // 当前所在城镇ID（多人模式）
   homeTown?: string; // 所属城镇ID（多人模式）
   travelCooldown?: number; // 旅行冷却时间（绝对时间）
+  hasRegretHistory?: boolean; // 是否有懊悔历史（降低喝晕和被发生关系的概率）
+  regretMood?: boolean; // 是否处于懊悔心情
+  regretEndTime?: number; // 懊悔心情结束时间（绝对时间）
   age: number; // 年龄（岁）
   maxAge: number; // 最大寿命（岁），默认100
   isDead: boolean; // 是否已死亡

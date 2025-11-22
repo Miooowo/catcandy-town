@@ -13,6 +13,9 @@ const townName = ref('猫果镇');
 // 旁观者名称
 const observerName = ref('');
 
+// 淫乱度等级（0-10）
+const promiscuityLevel = ref(1);
+
 // 居民名称列表（12个）
 const characterNames = ref<string[]>([...NAMES]);
 
@@ -53,6 +56,15 @@ const refreshTownName = () => {
     '果味镇', '喵喵乐园', '猫猫村', '果果村', '喵星村'
   ];
   townName.value = townNames[Math.floor(Math.random() * townNames.length)];
+};
+
+// 获取淫乱度描述
+const getPromiscuityDesc = (level: number): string => {
+  if (level === 0) return '纯爱模式';
+  if (level <= 3) return '低淫乱度';
+  if (level <= 6) return '中等淫乱度';
+  if (level <= 9) return '高淫乱度';
+  return '极高淫乱度';
 };
 
 // 预设配置
@@ -119,6 +131,7 @@ const startGame = () => {
   gameInstance.state.townName = trimmedTownName;
   gameInstance.state.customCharacterNames = trimmedNames;
   gameInstance.state.observerName = observerName.value.trim() || '';
+  gameInstance.state.promiscuityLevel = promiscuityLevel.value;
   
   // 初始化游戏
   if (gameInstance.state.chars.length === 0) {
@@ -148,6 +161,10 @@ onMounted(() => {
   } else {
     // 随机生成所有名称
     refreshAllNames();
+  }
+  
+  if (gameInstance.state.promiscuityLevel !== undefined) {
+    promiscuityLevel.value = gameInstance.state.promiscuityLevel;
   }
 });
 </script>
@@ -194,6 +211,33 @@ onMounted(() => {
               maxlength="20"
             />
             <small class="input-hint">💡 在多人模式下，其他玩家会看到"你的名称 的 城镇名称"</small>
+          </div>
+        </div>
+        
+        <!-- 淫乱度设置 -->
+        <div class="setting-section">
+          <div class="section-header">
+            <h3>🔞 存档淫乱度（0-10级）</h3>
+          </div>
+          <div class="input-group">
+            <div class="promiscuity-control">
+              <input 
+                type="range" 
+                v-model.number="promiscuityLevel"
+                min="0"
+                max="10"
+                step="1"
+                class="promiscuity-slider"
+              />
+              <div class="promiscuity-display">
+                <span class="level-value">{{ promiscuityLevel }}</span>
+                <span class="level-desc">{{ getPromiscuityDesc(promiscuityLevel) }}</span>
+              </div>
+            </div>
+            <small class="input-hint">
+              💡 0级：纯爱模式（取消所有炮友和小三关系，禁止强奸和诱拐）<br>
+              💡 10级：高淫乱度（增加70%的淫乱属性修正）
+            </small>
           </div>
         </div>
         

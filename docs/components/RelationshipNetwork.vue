@@ -25,8 +25,8 @@ const offsetY = ref(0);
 const isDragging = ref(false);
 const dragStart = ref({ x: 0, y: 0 });
 const draggedNode = ref<string | null>(null);
-const isStable = ref(false); // 是否已稳定
-const physicsEnabled = ref(true); // 默认启用物理模拟（动态但温和）
+const isStable = ref(true); // 是否已稳定（静态模式，始终稳定）
+const physicsEnabled = ref(false); // 禁用物理模拟（静态模式）
 const isDraggingNode = ref(false); // 是否正在拖拽节点
 
 // 节点和边的数据
@@ -372,13 +372,10 @@ const draw = () => {
   ctx.restore();
 };
 
-// 动画循环（默认启用物理模拟）
+// 动画循环（静态模式，只绘制）
 let animationId: number | null = null;
 const animate = () => {
-  // 默认启用物理模拟（温和的动态效果）
-  if (physicsEnabled.value) {
-    updatePhysics();
-  }
+  // 静态模式：不更新物理，只绘制
   draw();
   animationId = requestAnimationFrame(animate);
 };
@@ -488,9 +485,14 @@ watch(() => props.visible, (newVal) => {
     nextTick(() => {
       initializeNodes();
       buildRelationships();
-      isStable.value = false; // 初始不稳定，需要物理模拟
-      physicsEnabled.value = true; // 默认启用物理模拟（温和的动态效果）
+      isStable.value = true; // 静态模式，始终稳定
+      physicsEnabled.value = false; // 禁用物理模拟（静态模式）
       isDraggingNode.value = false; // 默认不拖拽
+      // 初始化时停止所有节点运动
+      nodes.value.forEach(node => {
+        node.vx = 0;
+        node.vy = 0;
+      });
       animate();
     });
   } else {
@@ -509,9 +511,14 @@ onMounted(() => {
     nextTick(() => {
       initializeNodes();
       buildRelationships();
-      isStable.value = false; // 初始不稳定，需要物理模拟
-      physicsEnabled.value = true; // 默认启用物理模拟（温和的动态效果）
+      isStable.value = true; // 静态模式，始终稳定
+      physicsEnabled.value = false; // 禁用物理模拟（静态模式）
       isDraggingNode.value = false; // 默认不拖拽
+      // 初始化时停止所有节点运动
+      nodes.value.forEach(node => {
+        node.vx = 0;
+        node.vy = 0;
+      });
       animate();
     });
   }
@@ -530,10 +537,6 @@ onUnmounted(() => {
       <div class="network-header">
         <h3 class="network-title">🕸️ 关系网络图</h3>
         <div class="network-controls">
-          <button @click="togglePhysics" :class="['btn-physics', { active: physicsEnabled }]" :title="physicsEnabled ? '暂停物理效果' : '启用物理效果'">
-            {{ physicsEnabled ? '⏸️ 暂停' : '▶️ 播放' }}
-          </button>
-          <button @click="stabilize" class="btn-stabilize" title="稳定布局">⚡ 稳定</button>
           <button @click="scale = 1; offsetX = 0; offsetY = 0; draw()" class="btn-reset-view" title="重置视图">🔄 重置</button>
           <button class="modal-close" @click="closeModal">×</button>
         </div>

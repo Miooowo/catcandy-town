@@ -1,5 +1,6 @@
 export interface ChangelogEntry {
   version: string;
+  title?: string; // 版本标题
   date: string;
   added?: string[];
   removed?: string[];
@@ -7,7 +8,7 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.5.3';
+export const GAME_VERSION = '1.6';
 
 // 秘籍文本加密函数（生成乱码效果，类似"棍斤拷"）
 const encryptSecret = (text: string): string => {
@@ -42,6 +43,27 @@ const encryptSecret = (text: string): string => {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.6',
+    title: '洗脚店之夜！',
+    date: '2025/11/22',
+    added: [
+      '存档淫乱度系统：在开始页添加淫乱度选择（0-10级），影响全局淫乱属性',
+      '纯爱模式（0级淫乱度）：取消所有炮友和小三关系，强碱和诱拐概率为0',
+      '高淫乱度（10级）：增加70%的淫乱属性修正',
+      '死宅特质：新增死宅特质，死宅几乎不买避孕用品，不去酒吧喝酒，几乎总是待在家里，通过鹿观或扣扣释放性欲',
+      '喝醉酒打劫事件：喝醉酒的人有概率进行打劫，如果对方拒不付钱或身无分文则进行劫色判定'
+    ],
+    changed: [
+      '降低全局淫乱属性：整体降低游戏中的淫乱相关行为概率',
+      '修正胆小特质：胆小特质的人更少或几乎不买避孕套',
+      '优化性欲系统：死宅特质也有性欲值，通过在家进行鹿观或扣扣释放',
+      '关系网络优化：取消关系网络的物理效果，改为静态显示，节点位置固定，仍支持手动拖拽和缩放'
+    ],
+    fixed: [
+      '修复教堂收入记录问题：教堂的门槛费和结婚费用现在正确记录日均收入'
+    ]
+  },
+  {
     version: '1.5.3',
     date: '2025/11/22 12:57',
       added: [
@@ -55,18 +77,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       '旁观者名显示：在版本信息旁边显示旁观者名，点击铅笔图标可编辑',
       '重置按钮移至侧边栏：重置按钮改名为"全局重置"并移至侧边栏',
       '存档重roll功能：新增存档重roll按钮，可重新随机生成居民特质并重置游戏时间'
-    ]
-  },
-  {
-    version: '1.5.2.1',
-    date: '2025/11/22',
-    added: [
-      '存档重roll功能：可以重置当前存档的游戏数据而不删除存档槽位'
-    ],
-    changed: [
-      'UI优化：将手机端侧边栏按钮移到城镇名称左边',
-      '旁观者名显示：在版本信息旁边显示旁观者名，点击铅笔图标可编辑',
-      '重置按钮移至侧边栏：重置按钮改名为"全局重置"并移至侧边栏'
     ]
   },
   {

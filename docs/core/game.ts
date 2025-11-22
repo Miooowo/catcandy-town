@@ -28,6 +28,7 @@ interface GameState {
   townName: string; // 城镇名称
   customCharacterNames: string[]; // 自定义居民名称（12个）
   observerName: string; // 旁观者名称（多人模式显示用）
+  promiscuityLevel: number; // 淫乱度等级（0-10），影响全局淫乱属性
 }
 
 export class GameEngine {
@@ -56,7 +57,8 @@ export class GameEngine {
       timeSpeed: 1,
       townName: '猫果镇', // 默认城镇名称
       customCharacterNames: [], // 自定义居民名称，如果为空则使用默认名称
-      observerName: '' // 旁观者名称，默认为空
+      observerName: '', // 旁观者名称，默认为空
+      promiscuityLevel: 1 // 淫乱度等级（0-10），默认1级
     });
 
     this.loadOrInit();
@@ -413,6 +415,11 @@ export class GameEngine {
 
     // 初始化建筑
     this.state.buildings = BUILDINGS_BLUEPRINT.map(b => new Building(b));
+    
+    // 0级淫乱度：清理所有炮友和小三关系
+    if (this.state.promiscuityLevel === 0) {
+      this.cleanPromiscuousRelationships();
+    }
     // 默认公园是建好的
     const park = this.state.buildings.find(b => b.id === 'park');
     if (park) {
@@ -519,6 +526,9 @@ export class GameEngine {
       
       // 检查零花钱（每小时检查一次，针对1-17岁的孩子）
       this.checkAllowance();
+      
+      // 0级淫乱度：定期清理炮友和小三关系（每小时检查一次）
+      this.cleanPromiscuousRelationships();
       
       // 检查年龄增长和死亡（每天检查一次）
       if (this.state.gameTime === 0) {
@@ -927,7 +937,8 @@ export class GameEngine {
       lastNewCharDay: this.lastNewCharDay, // 保存上次添加新居民的时间
       townName: this.state.townName, // 保存城镇名称
       customCharacterNames: this.state.customCharacterNames, // 保存自定义居民名称
-      observerName: this.state.observerName // 保存旁观者名称
+      observerName: this.state.observerName, // 保存旁观者名称
+      promiscuityLevel: this.state.promiscuityLevel // 保存淫乱度等级
     });
   }
 
@@ -1004,10 +1015,17 @@ export class GameEngine {
       // 恢复旁观者名称（如果旧存档没有，随机生成一个）
       if (migratedData.observerName && migratedData.observerName.trim()) {
         this.state.observerName = migratedData.observerName;
+        this.state.promiscuityLevel = migratedData.promiscuityLevel !== undefined ? migratedData.promiscuityLevel : 1;
       } else {
         // 随机生成一个旁观者名称
         this.state.observerName = this.generateRandomName() + rand(1, 999);
         this.log(`[🎲随机] 为你的存档随机生成了旁观者名称：${this.state.observerName}`, 'system');
+        this.state.promiscuityLevel = migratedData.promiscuityLevel !== undefined ? migratedData.promiscuityLevel : 1;
+      }
+      
+      // 0级淫乱度：清理所有炮友和小三关系
+      if (this.state.promiscuityLevel === 0) {
+        this.cleanPromiscuousRelationships();
       }
       
       // 恢复新居民添加时间（如果存档中没有，使用总天数）
@@ -1141,6 +1159,16 @@ export class GameEngine {
                   }
                   if (c.sexCount === undefined) {
                     c.sexCount = 0;
+                  }
+                  // 确保懊悔相关字段存在
+                  if (c.hasRegretHistory === undefined) {
+                    c.hasRegretHistory = false;
+                  }
+                  if (c.regretMood === undefined) {
+                    c.regretMood = false;
+                  }
+                  if (c.regretEndTime === undefined) {
+                    c.regretEndTime = undefined;
                   }
                   // 确保酒量相关字段存在
                   if (c.alcoholTolerance === undefined) {
@@ -1372,15 +1400,24 @@ export class GameEngine {
     
     let venue: any;
     if (availableVenues.length > 0) {
-      // 有"淫乱"特质的人更倾向于去药店购买避孕用品
       let selectedBuilding: Building;
-      if (p.hasTrait('promiscuous')) {
+      // 死宅特质：几乎不去酒吧
+      if (p.hasTrait('otaku')) {
+        const venuesWithoutBar = availableVenues.filter(b => b.id !== 'bar');
+        if (venuesWithoutBar.length > 0) {
+          selectedBuilding = choose(venuesWithoutBar);
+        } else {
+          selectedBuilding = choose(availableVenues);
+        }
+      }
+      // 有"淫乱"特质的人更倾向于去药店购买避孕用品（受淫乱度修正）
+      else if (p.hasTrait('promiscuous')) {
+        const promiscuityModifier = this.getPromiscuityModifier();
         const pharmacy = availableVenues.find(b => b.id === 'pharmacy');
-        if (pharmacy && Math.random() < 0.4) {
-          // 40%概率选择药店
+        const pharmacyChance = 0.4 * promiscuityModifier;
+        if (pharmacy && Math.random() < pharmacyChance) {
           selectedBuilding = pharmacy;
         } else {
-          // 其他情况随机选择
           selectedBuilding = choose(availableVenues);
         }
       } else {
@@ -1439,8 +1476,12 @@ export class GameEngine {
     }
     // B. 社交/恋爱 (50%，提高社交频率)
     // 特质影响：社交达人更倾向社交，孤僻的人更倾向独处
+    // 懊悔心情：降低社交频率
     else if (roll < 0.85) { // 从0.8提高到0.85，增加社交概率
       let socialChance = 1.0; // 默认100%进行社交
+      if (p.regretMood) {
+        socialChance = 0.3; // 懊悔心情时社交概率降低到30%
+      }
       if (p.hasTrait('social')) {
         socialChance = 1.2; // 社交达人更倾向社交（即使roll稍高也会社交）
       } else if (p.hasTrait('loner')) {
@@ -2100,9 +2141,71 @@ export class GameEngine {
       prod.id === 'condoms'
     );
     
+    // 死宅特质：几乎不买避孕用品
+    if (isPharmacy && p.hasTrait('otaku')) {
+      // 死宅几乎不买避孕用品（5%概率）
+      if (Math.random() < 0.05) {
+        // 即使买了，也不优先选择避孕用品
+        const nonContraceptives = affordableProducts.filter(prod => 
+          prod.id !== 'birth_control_pills' && 
+          prod.id !== 'contraceptive_patch' && 
+          prod.id !== 'condoms'
+        );
+        if (nonContraceptives.length > 0) {
+          return choose(nonContraceptives);
+        }
+      } else {
+        // 95%概率不买避孕用品
+        const nonContraceptives = affordableProducts.filter(prod => 
+          prod.id !== 'birth_control_pills' && 
+          prod.id !== 'contraceptive_patch' && 
+          prod.id !== 'condoms'
+        );
+        if (nonContraceptives.length > 0) {
+          return choose(nonContraceptives);
+        }
+        // 如果没有其他商品，返回null（不购买）
+        return null;
+      }
+    }
+    
+    // 胆小特质：更少或几乎不买避孕套
+    if (isPharmacy && p.hasTrait('coward')) {
+      const contraceptives = affordableProducts.filter(prod => 
+        prod.id === 'birth_control_pills' || 
+        prod.id === 'contraceptive_patch' || 
+        prod.id === 'condoms'
+      );
+      // 胆小的人只有10%概率买避孕用品
+      if (Math.random() < 0.1) {
+        if (contraceptives.length > 0) {
+          const cheapest = contraceptives.reduce((min, prod) => 
+            prod.price < min.price ? prod : min
+          );
+          return cheapest;
+        }
+      } else {
+        // 90%概率不买避孕用品
+        const nonContraceptives = affordableProducts.filter(prod => 
+          prod.id !== 'birth_control_pills' && 
+          prod.id !== 'contraceptive_patch' && 
+          prod.id !== 'condoms'
+        );
+        if (nonContraceptives.length > 0) {
+          return choose(nonContraceptives);
+        }
+        return null;
+      }
+    }
+    
+    // 应用淫乱度修正
+    const promiscuityModifier = this.getPromiscuityModifier();
+    
     if (isPharmacy && p.hasTrait('promiscuous')) {
-      // 有"淫乱"特质的人在药店：80%概率购买避孕用品
-      if (Math.random() < 0.8) {
+      // 有"淫乱"特质的人在药店：基础80%概率购买避孕用品，受淫乱度修正
+      const baseChance = 0.8;
+      const adjustedChance = Math.min(1, baseChance * promiscuityModifier);
+      if (Math.random() < adjustedChance) {
         // 优先选择避孕用品
         const contraceptives = affordableProducts.filter(prod => 
           prod.id === 'birth_control_pills' || 
@@ -2187,6 +2290,8 @@ export class GameEngine {
             const upgradeFund = Math.floor(marriageFee * 0.1);
             church.companyFunds += upgradeFund;
             church.totalRevenue += marriageFee;
+            // 更新当天员工收入（用于计算日均收入）
+            church.dailyStaffIncome += Math.floor(marriageFee * 0.9);
             
             this.log(`[💒结婚费用] **${p.name}** 在教堂办理结婚手续，支付了 💰${marriageFee}元（神父获得90%，10%用于升级教堂）`, 'event');
           } else {
@@ -2221,6 +2326,8 @@ export class GameEngine {
             const upgradeFund = Math.floor(entranceFee * 0.1);
             church.companyFunds += upgradeFund;
             church.totalRevenue += entranceFee;
+            // 更新当天员工收入（用于计算日均收入）
+            church.dailyStaffIncome += Math.floor(entranceFee * 0.9);
             
             this.log(`[💒门槛费] **${p.name}** 进入教堂，支付了 💰${entranceFee}元门槛费（神父获得90%，10%用于升级教堂）`, 'event');
           } else {
@@ -2435,6 +2542,11 @@ export class GameEngine {
       drunkChance *= 0.3; // 胆小的人喝晕概率大幅降低
     }
     
+    // 懊悔历史：降低喝晕概率
+    if (p.hasRegretHistory) {
+      drunkChance *= 0.7; // 有懊悔历史的人喝晕概率降低30%
+    }
+    
     // 随机波动
     drunkChance += (Math.random() - 0.5) * 0.2; // ±10%波动
     drunkChance = Math.max(0, Math.min(1, drunkChance)); // 限制在0-1之间
@@ -2515,6 +2627,14 @@ export class GameEngine {
       return;
     }
     
+    // 喝醉酒的人有概率进行打劫事件
+    const promiscuityModifier = this.getPromiscuityModifier();
+    if (promiscuityModifier > 0 && Math.random() < 0.15) {
+      // 15%概率进行打劫
+      this.attemptDrunkRobbery(p);
+      return;
+    }
+    
     // 刚喝晕：70%概率被其他人带走开房或回家，30%概率睡在马路上
     if (Math.random() < 0.7) {
       // 被其他人带走开房或回家
@@ -2525,6 +2645,21 @@ export class GameEngine {
         !c.isInHotel && // 已经在酒店的人不能带走别人
         !p.interactingWith // 如果已经被其他人带走，不能再被带走
       );
+      
+      if (availableChars.length >= 2) {
+        // 有至少2个人可用，极小概率发生3p事件
+        const promiscuityModifier = this.getPromiscuityModifier();
+        if (promiscuityModifier > 0 && Math.random() < 0.05) {
+          // 5%概率尝试3p事件
+          const takers = [choose(availableChars)];
+          const remainingChars = availableChars.filter(c => c.name !== takers[0].name);
+          if (remainingChars.length > 0) {
+            takers.push(choose(remainingChars));
+            this.handle3PEvent(p, takers[0], takers[1]);
+            return;
+          }
+        }
+      }
       
       if (availableChars.length > 0) {
         const taker = choose(availableChars);
@@ -2610,6 +2745,21 @@ export class GameEngine {
       taker.hotelWith = p.name;
       
       // 可能发生关系（根据性格和特质）
+      // 0级淫乱度：只允许恋爱关系（lover/spouse）发生关系
+      const promiscuityModifier = this.getPromiscuityModifier();
+      if (promiscuityModifier === 0) {
+        // 只有恋爱关系才能发生关系
+        if (pRel.status !== 'lover' && pRel.status !== 'spouse') {
+          // 非恋爱关系，禁止发生关系，只休息
+          this.log(`[🏨开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}休息。`, 'event');
+          p.currentAction = `🍺 被 ${taker.name} 带到酒店`;
+          taker.currentAction = `🏨 和 ${p.name} 在酒店`;
+          p.interactingWith = taker.name;
+          taker.interactingWith = p.name;
+          return;
+        }
+      }
+      
       let intimacyChance = 0.3; // 基础概率30%
       if (p.hasTrait('promiscuous') || taker.hasTrait('promiscuous')) {
         intimacyChance = 0.6; // 淫乱特质概率更高
@@ -2618,8 +2768,17 @@ export class GameEngine {
       if (p.hasTrait('coward') || taker.hasTrait('coward')) {
         intimacyChance *= 0.2; // 胆小的人抗拒酒店，概率大幅降低
       }
+      // 懊悔历史：降低发生关系概率
+      if (p.hasRegretHistory) {
+        intimacyChance *= 0.6; // 有懊悔历史的人发生关系概率降低40%
+      }
       if (pRel.love > 50) {
         intimacyChance += 0.2; // 好感度高概率更高
+      }
+      
+      // 应用淫乱度修正（非恋爱关系）
+      if (promiscuityModifier > 0 && pRel.status !== 'lover' && pRel.status !== 'spouse') {
+        intimacyChance *= promiscuityModifier;
       }
       
       if (Math.random() < intimacyChance) {
@@ -2634,21 +2793,22 @@ export class GameEngine {
           // 非淫乱特质：降低发生者的好感
           tRel.love = Math.max(0, tRel.love - rand(10, 20));
           pRel.love = Math.min(100, pRel.love + rand(3, 8)); // 被发生方可能稍微增加好感（因为被照顾）
-          this.log(`[💔开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系，但 **${p.name}** 对此感到不满，**${taker.name}** 的好感度下降了。`, 'drama');
+          this.log(`[💔开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系，但 **${p.name}** 对此感到不满，对 **${taker.name}** 的好感度下降了。`, 'drama');
         } else {
           // 淫乱特质：有小的概率降低对方的好感，也有概率发展成炮友
           if (Math.random() < 0.3) {
             // 30%概率降低对方的好感
             tRel.love = Math.max(0, tRel.love - rand(5, 10));
             pRel.love = Math.min(100, pRel.love + rand(3, 8));
-            this.log(`[💔开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系，但 **${p.name}** 对此感到不满，**${taker.name}** 的好感度下降了。`, 'drama');
+            this.log(`[💔开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系，但 **${p.name}** 对此感到不满，对 **${taker.name}** 的好感度下降了。`, 'drama');
           } else {
             // 70%概率增加好感
             pRel.love = Math.min(100, pRel.love + rand(5, 10));
             tRel.love = Math.min(100, tRel.love + rand(5, 10));
             
-            // 有概率发展成炮友
-            if (Math.random() < 0.4 && !p.fwbList.includes(taker.name) && !taker.fwbList.includes(p.name)) {
+            // 有概率发展成炮友（0级淫乱度禁止）
+            const promiscuityModifier = this.getPromiscuityModifier();
+            if (promiscuityModifier > 0 && Math.random() < 0.4 && !p.fwbList.includes(taker.name) && !taker.fwbList.includes(p.name)) {
               p.fwbList.push(taker.name);
               taker.fwbList.push(p.name);
               this.log(`[💋开房] **${taker.name}** 把喝晕的 **${p.name}** 带到了酒店，开了${selectedRoom.name}，并发生了关系，两人发展成了炮友关系！`, 'drama');
@@ -2683,9 +2843,33 @@ export class GameEngine {
     } else {
       // 带回家：可以照顾或发生关系
       // 决定是照顾还是发生关系
+      // 0级淫乱度：只允许恋爱关系（lover/spouse）发生关系
+      const promiscuityModifier = this.getPromiscuityModifier();
+      if (promiscuityModifier === 0) {
+        // 只有恋爱关系才能发生关系
+        if (pRel.status !== 'lover' && pRel.status !== 'spouse') {
+          // 非恋爱关系，禁止发生关系，只照顾
+          p.currentAction = `🏠 被 ${taker.name} 带回家`;
+          taker.currentAction = `🏠 带 ${p.name} 回家`;
+          p.interactingWith = taker.name;
+          taker.interactingWith = p.name;
+          p.happiness = Math.min(100, p.happiness + rand(5, 10));
+          taker.happiness = Math.min(100, taker.happiness + rand(3, 8));
+          // 增加彼此好感度
+          pRel.love = Math.min(100, pRel.love + rand(8, 15));
+          tRel.love = Math.min(100, tRel.love + rand(5, 10));
+          this.log(`[🏠带回家] **${taker.name}** 把喝晕的 **${p.name}** 带回了家照顾，彼此的好感度增加了。`, 'event');
+          return;
+        }
+      }
+      
       let intimacyChance = 0.3; // 基础概率30%
       if (p.hasTrait('promiscuous') || taker.hasTrait('promiscuous')) {
         intimacyChance = 0.6; // 淫乱特质概率更高
+      }
+      // 懊悔历史：降低发生关系概率
+      if (p.hasRegretHistory) {
+        intimacyChance *= 0.6; // 有懊悔历史的人发生关系概率降低40%
       }
       // 胆小特质大幅降低概率
       if (p.hasTrait('coward') || taker.hasTrait('coward')) {
@@ -2693,6 +2877,11 @@ export class GameEngine {
       }
       if (pRel.love > 50) {
         intimacyChance += 0.2; // 好感度高概率更高
+      }
+      
+      // 应用淫乱度修正（非恋爱关系）
+      if (promiscuityModifier > 0 && pRel.status !== 'lover' && pRel.status !== 'spouse') {
+        intimacyChance *= promiscuityModifier;
       }
       
       if (Math.random() < intimacyChance) {
@@ -2706,20 +2895,21 @@ export class GameEngine {
         if (!p.hasTrait('promiscuous')) {
           // 非淫乱特质：降低发生者的好感
           tRel.love = Math.max(0, tRel.love - rand(10, 20));
-          this.log(`[💔发生关系] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系，但 **${p.name}** 对此感到不满，**${taker.name}** 的好感度下降了。`, 'drama');
+          this.log(`[💔发生关系] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系，但 **${p.name}** 对此感到不满，对 **${taker.name}** 的好感度下降了。`, 'drama');
         } else {
           // 淫乱特质：有小的概率降低对方的好感，也有概率发展成炮友
           if (Math.random() < 0.3) {
             // 30%概率降低对方的好感
             tRel.love = Math.max(0, tRel.love - rand(5, 10));
-            this.log(`[💔发生关系] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系，但 **${p.name}** 对此感到不满，**${taker.name}** 的好感度下降了。`, 'drama');
+            this.log(`[💔发生关系] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系，但 **${p.name}** 对此感到不满，对 **${taker.name}** 的好感度下降了。`, 'drama');
           } else {
             // 70%概率增加好感
             pRel.love = Math.min(100, pRel.love + rand(5, 10));
             tRel.love = Math.min(100, tRel.love + rand(5, 10));
             
-            // 有概率发展成炮友
-            if (Math.random() < 0.4 && !p.fwbList.includes(taker.name) && !taker.fwbList.includes(p.name)) {
+            // 有概率发展成炮友（0级淫乱度禁止）
+            const promiscuityModifier = this.getPromiscuityModifier();
+            if (promiscuityModifier > 0 && Math.random() < 0.4 && !p.fwbList.includes(taker.name) && !taker.fwbList.includes(p.name)) {
               p.fwbList.push(taker.name);
               taker.fwbList.push(p.name);
               this.log(`[💋发展炮友] **${taker.name}** 把喝晕的 **${p.name}** 带回家并发生了关系，两人发展成了炮友关系！`, 'drama');
@@ -2762,6 +2952,286 @@ export class GameEngine {
         this.log(`[🏠带回家] **${taker.name}** 把喝晕的 **${p.name}** 带回了家照顾，彼此的好感度增加了。`, 'event');
       }
     }
+  }
+
+  // 喝醉酒打劫事件
+  attemptDrunkRobbery(robber: Character) {
+    // 随机选择打劫对象
+    const potentialTargets = this.state.chars.filter(c => 
+      c.name !== robber.name && 
+      !c.isDead &&
+      !c.isDrunk // 不打劫同样喝醉的人
+    );
+    
+    if (potentialTargets.length === 0) return;
+    
+    const target = choose(potentialTargets);
+    
+    // 建立关系（如果还没有）
+    if (!robber.relationships[target.name]) {
+      robber.relationships[target.name] = { love: 0, status: 'stranger' };
+    }
+    if (!target.relationships[robber.name]) {
+      target.relationships[robber.name] = { love: 0, status: 'stranger' };
+    }
+    
+    const robberRel = robber.relationships[target.name];
+    const targetRel = target.relationships[robber.name];
+    
+    // 尝试打劫金钱
+    if (target.money > 0 && Math.random() < 0.7) {
+      // 70%概率对方付钱
+      const stolenAmount = Math.min(target.money, rand(10, 50));
+      target.money -= stolenAmount;
+      robber.money += stolenAmount;
+      
+      target.happiness = Math.max(0, target.happiness - rand(5, 15));
+      robber.happiness = Math.min(100, robber.happiness + rand(3, 10));
+      
+      // 关系恶化
+      targetRel.love = Math.max(0, targetRel.love - rand(10, 20));
+      robberRel.love = Math.max(0, robberRel.love - rand(5, 10));
+      
+      this.log(`[💰打劫成功] 喝醉的 **${robber.name}** 打劫了 **${target.name}** 💰${stolenAmount}元！`, 'drama');
+      return;
+    }
+    
+    // 对方拒不付钱或身无分文，进行劫色判定
+    this.attemptDrunkSexualAssault(robber, target, robberRel, targetRel);
+  }
+  
+  // 喝醉酒劫色事件
+  attemptDrunkSexualAssault(robber: Character, target: Character, robberRel: Relationship, targetRel: Relationship) {
+    const promiscuityModifier = this.getPromiscuityModifier();
+    
+    // 0级淫乱度：劫色概率为0
+    if (promiscuityModifier === 0) {
+      this.log(`[❌打劫失败] 喝醉的 **${robber.name}** 试图打劫 **${target.name}**，但对方拒不付钱，劫色未遂。`, 'reject');
+      targetRel.love = Math.max(0, targetRel.love - rand(5, 10));
+      robberRel.love = Math.max(0, robberRel.love - rand(3, 8));
+      return;
+    }
+    
+    // 计算劫色成功概率
+    let successChance = 0.4; // 基础成功率40%
+    
+    // 性格和特质影响
+    if (target.personality.name === '易怒' && target.hasTrait('coward')) {
+      successChance *= 0.3; // 易怒且胆小的人更难被劫色
+    } else if (target.personality.name === '易怒') {
+      successChance *= 0.6;
+    } else if (target.hasTrait('coward')) {
+      successChance *= 0.7;
+    }
+    
+    if (robber.personality.name === '冲动') {
+      successChance *= 1.2;
+    }
+    if (robber.hasTrait('coward')) {
+      successChance *= 0.5; // 胆小的抢劫者成功率降低
+    }
+    
+    // 应用淫乱度修正
+    successChance *= promiscuityModifier;
+    successChance = Math.max(0.1, Math.min(0.9, successChance));
+    
+    if (Math.random() < successChance) {
+      // 劫色成功，发生关系
+      target.happiness = Math.max(0, target.happiness - rand(15, 30));
+      robber.happiness = Math.min(100, robber.happiness + rand(5, 15));
+      
+      // 被发生者对发生者的好感度大幅下降
+      targetRel.love = Math.max(0, targetRel.love - rand(30, 50));
+      robberRel.love = Math.max(0, robberRel.love - rand(10, 20));
+      
+      this.log(`[🚨劫色成功] 喝醉的 **${robber.name}** 对 **${target.name}** 进行了劫色...`, 'drama');
+      
+      // 如果被发生者是淫乱特质，有概率成为炮友，也有小概率降低好感（0级淫乱度禁止）
+      const promiscuityModifier = this.getPromiscuityModifier();
+      if (promiscuityModifier > 0 && target.hasTrait('promiscuous')) {
+        if (Math.random() < 0.3) {
+          // 30%概率成为炮友
+          if (!robber.fwbList.includes(target.name)) {
+            robber.fwbList.push(target.name);
+          }
+          if (!target.fwbList.includes(robber.name)) {
+            target.fwbList.push(robber.name);
+          }
+          targetRel.love = Math.min(100, targetRel.love + rand(5, 15)); // 好感度略微回升
+          this.log(`[💋发展炮友] **${target.name}** 和 **${robber.name}** 发展成了炮友关系！`, 'drama');
+        } else if (Math.random() < 0.2) {
+          // 20%概率降低好感（但已经降低了）
+          targetRel.love = Math.max(0, targetRel.love - rand(10, 20));
+        }
+      }
+      
+      // 可能怀孕
+      if (Math.random() < 0.3 && !target.pregnant && !robber.pregnant) {
+        const whoGetsPregnant = Math.random() < 0.5 ? target : robber;
+        const other = whoGetsPregnant === target ? robber : target;
+        if (whoGetsPregnant.contraceptives <= 0) {
+          const pregnancyDuration = 280 * 24 * 60;
+          whoGetsPregnant.pregnant = {
+            father: other.name,
+            dueDate: this.getAbsoluteTime() + pregnancyDuration
+          };
+          this.log(`[🤰怀孕] **${whoGetsPregnant.name}** 在劫色事件后怀孕了！`, 'drama');
+        }
+      }
+    } else {
+      // 劫色失败
+      target.happiness = Math.max(0, target.happiness - rand(5, 10));
+      robber.happiness = Math.max(0, robber.happiness - rand(5, 10));
+      
+      // 关系恶化
+      targetRel.love = Math.max(0, targetRel.love - rand(15, 25));
+      robberRel.love = Math.max(0, robberRel.love - rand(5, 15));
+      
+      this.log(`[❌劫色失败] 喝醉的 **${robber.name}** 试图对 **${target.name}** 进行劫色，但失败了！`, 'reject');
+    }
+  }
+
+  // 0级淫乱度：清理炮友和小三关系
+  cleanPromiscuousRelationships() {
+    const promiscuityModifier = this.getPromiscuityModifier();
+    if (promiscuityModifier > 0) return; // 非0级不需要清理
+    
+    // 清理所有炮友关系
+    this.state.chars.forEach(char => {
+      if (char.fwbList && char.fwbList.length > 0) {
+        char.fwbList.forEach(fwbName => {
+          const fwb = this.state.chars.find(c => c.name === fwbName);
+          if (fwb && fwb.fwbList) {
+            const index = fwb.fwbList.indexOf(char.name);
+            if (index !== -1) {
+              fwb.fwbList.splice(index, 1);
+            }
+          }
+        });
+        char.fwbList = [];
+      }
+    });
+    
+    // 清理所有小三关系（将mistress状态降级为friend）
+    this.state.chars.forEach(char => {
+      Object.keys(char.relationships).forEach(otherName => {
+        const rel = char.relationships[otherName];
+        if (rel.status === 'mistress') {
+          rel.status = 'friend';
+          const other = this.state.chars.find(c => c.name === otherName);
+          if (other && other.relationships[char.name] && other.relationships[char.name].status === 'mistress') {
+            other.relationships[char.name].status = 'friend';
+          }
+        }
+      });
+    });
+  }
+
+  // 处理3p事件
+  handle3PEvent(p: Character, taker1: Character, taker2: Character) {
+    const promiscuityModifier = this.getPromiscuityModifier();
+    
+    // 0级淫乱度：禁止3p事件
+    if (promiscuityModifier === 0) {
+      // 降级为普通带走
+      this.takeDrunkHomeOrHotel(p, taker1);
+      return;
+    }
+    
+    // 建立关系（如果还没有）
+    if (!p.relationships[taker1.name]) {
+      p.relationships[taker1.name] = { love: 0, status: 'stranger' };
+    }
+    if (!p.relationships[taker2.name]) {
+      p.relationships[taker2.name] = { love: 0, status: 'stranger' };
+    }
+    if (!taker1.relationships[p.name]) {
+      taker1.relationships[p.name] = { love: 0, status: 'stranger' };
+    }
+    if (!taker2.relationships[p.name]) {
+      taker2.relationships[p.name] = { love: 0, status: 'stranger' };
+    }
+    if (!taker1.relationships[taker2.name]) {
+      taker1.relationships[taker2.name] = { love: 0, status: 'stranger' };
+    }
+    if (!taker2.relationships[taker1.name]) {
+      taker2.relationships[taker1.name] = { love: 0, status: 'stranger' };
+    }
+    
+    const pRel1 = p.relationships[taker1.name];
+    const pRel2 = p.relationships[taker2.name];
+    const t1Rel = taker1.relationships[p.name];
+    const t2Rel = taker2.relationships[p.name];
+    
+    // 3p事件发生
+    p.currentAction = `🔞 被 ${taker1.name} 和 ${taker2.name} 一起带走`;
+    taker1.currentAction = `🔞 和 ${taker2.name} 一起带走 ${p.name}`;
+    taker2.currentAction = `🔞 和 ${taker1.name} 一起带走 ${p.name}`;
+    p.interactingWith = `${taker1.name},${taker2.name}`;
+    taker1.interactingWith = `${p.name},${taker2.name}`;
+    taker2.interactingWith = `${p.name},${taker1.name}`;
+    
+    // 降低心情（被发生者）
+    p.happiness = Math.max(0, p.happiness - rand(20, 40));
+    taker1.happiness = Math.min(100, taker1.happiness + rand(5, 15));
+    taker2.happiness = Math.min(100, taker2.happiness + rand(5, 15));
+    
+    // 关系变化
+    pRel1.love = Math.max(0, pRel1.love - rand(15, 30));
+    pRel2.love = Math.max(0, pRel2.love - rand(15, 30));
+    t1Rel.love = Math.max(0, t1Rel.love - rand(10, 20));
+    t2Rel.love = Math.max(0, t2Rel.love - rand(10, 20));
+    
+    this.log(`[🔞3P事件] **${taker1.name}** 和 **${taker2.name}** 一起带走了喝晕的 **${p.name}** 并发生了3P关系...`, 'drama');
+    
+    // 极小概率获得淫乱特质
+    if (!p.hasTrait('promiscuous') && Math.random() < 0.05) {
+      // 5%概率获得淫乱特质
+      const promiscuousTrait = TRAITS.find(t => t.id === 'promiscuous');
+      if (promiscuousTrait) {
+        p.traits.push(promiscuousTrait);
+        this.log(`[💋获得特质] **${p.name}** 在3P事件后获得了"淫乱"特质...`, 'drama');
+      }
+    }
+    
+    // 获得一天的懊悔心情
+    const regretDuration = 24 * 60; // 24小时（分钟）
+    p.regretMood = true;
+    p.regretEndTime = this.getAbsoluteTime() + regretDuration;
+    p.hasRegretHistory = true; // 标记有懊悔历史
+    
+    this.log(`[😔懊悔] **${p.name}** 对3P事件感到懊悔，心情低落...`, 'drama');
+    
+    // 可能怀孕（随机选择一方）
+    if (Math.random() < 0.3) {
+      const whoGetsPregnant = Math.random() < 0.33 ? p : (Math.random() < 0.5 ? taker1 : taker2);
+      const father = whoGetsPregnant === p ? (Math.random() < 0.5 ? taker1.name : taker2.name) : 
+                     whoGetsPregnant === taker1 ? (Math.random() < 0.5 ? p.name : taker2.name) :
+                     (Math.random() < 0.5 ? p.name : taker1.name);
+      
+      if (!whoGetsPregnant.pregnant && whoGetsPregnant.contraceptives <= 0) {
+        const pregnancyDuration = 280 * 24 * 60;
+        whoGetsPregnant.pregnant = {
+          father: father,
+          dueDate: this.getAbsoluteTime() + pregnancyDuration
+        };
+        this.log(`[🤰怀孕] **${whoGetsPregnant.name}** 在3P事件后怀孕了！`, 'drama');
+      }
+    }
+  }
+
+  // 检查懊悔心情是否结束
+  checkRegretMood() {
+    this.state.chars.forEach(char => {
+      if (char.regretMood && char.regretEndTime) {
+        if (this.getAbsoluteTime() >= char.regretEndTime) {
+          // 懊悔心情结束
+          char.regretMood = false;
+          char.regretEndTime = undefined;
+          this.log(`[😌恢复] **${char.name}** 从懊悔心情中恢复，但依然对之前的经历心有余悸...`, 'event');
+        }
+      }
+    });
   }
 
   // 处理睡在马路上
@@ -2893,12 +3363,16 @@ export class GameEngine {
 
     // --- 发展小三关系 (一方或双方已婚) ---
     // 注意：炮友关系可以和小三关系并存，所以这里不排除fwb状态
-    if ((p.partner || t.partner) && pRel.love > 60 && pRel.status !== 'lover' && pRel.status !== 'spouse' && pRel.status !== 'mistress') {
+    // 0级淫乱度：禁止小三关系
+    const promiscuityModifier = this.getPromiscuityModifier();
+    if (promiscuityModifier > 0 && (p.partner || t.partner) && pRel.love > 60 && pRel.status !== 'lover' && pRel.status !== 'spouse' && pRel.status !== 'mistress') {
       // 需要特殊场所（酒吧、酒店）且概率较低
       let mistressChance = 0.05;
-      // 淫乱特性增加概率
+      // 淫乱特性增加概率（受淫乱度修正）
       if (p.hasTrait('promiscuous') || t.hasTrait('promiscuous')) {
-        mistressChance *= 3; // 淫乱的人概率翻3倍
+        mistressChance *= 3 * promiscuityModifier; // 淫乱的人概率翻3倍，受淫乱度修正
+      } else {
+        mistressChance *= promiscuityModifier; // 非淫乱特质也受淫乱度修正
       }
       if ((venue.effect === 'chaos' || venue.effect === 'ntr') && Math.random() < mistressChance) {
         if (t.decideProposal(p.name, 'confess')) {
@@ -2938,6 +3412,14 @@ export class GameEngine {
 
     // --- 酒店交欢事件 (需要一定好感度) ---
     if (venue.effect === 'ntr' && pRel.love > 50) {
+      // 0级淫乱度：只允许恋爱关系（lover/spouse）发生关系
+      if (promiscuityModifier === 0) {
+        // 只有恋爱关系才能发生关系
+        if (pRel.status !== 'lover' && pRel.status !== 'spouse') {
+          return false;
+        }
+      }
+      
       // 概率较低，不要太频繁 (2%基础概率)
       let intimacyChance = 0.02;
       // 如果是情侣/夫妻/小三，概率稍高
@@ -2946,14 +3428,25 @@ export class GameEngine {
       }
       // 好感度越高，概率越高
       intimacyChance += (pRel.love - 50) / 2000; // 最多再+2.5%
-      // 淫乱特质大幅增加概率
-      if (p.hasTrait('promiscuous') || t.hasTrait('promiscuous')) {
-        intimacyChance *= 2.5; // 淫乱的人概率翻2.5倍
+      
+      // 非0级淫乱度时，应用淫乱度修正
+      if (promiscuityModifier > 0) {
+        // 淫乱特质大幅增加概率（受淫乱度修正）
+        if (p.hasTrait('promiscuous') || t.hasTrait('promiscuous')) {
+          intimacyChance *= 2.5 * promiscuityModifier; // 淫乱的人概率翻2.5倍，受淫乱度修正
+        } else {
+          intimacyChance *= promiscuityModifier; // 非淫乱特质也受淫乱度修正
+        }
       }
       
       // 胆小特质大幅降低概率（害怕被草）
       if (p.hasTrait('coward') || t.hasTrait('coward')) {
         intimacyChance *= 0.2; // 胆小的人概率大幅降低
+      }
+      
+      // 0级淫乱度：只允许恋爱关系（lover/spouse）发生关系
+      if (promiscuityModifier === 0 && pRel.status !== 'lover' && pRel.status !== 'spouse') {
+        return false; // 非恋爱关系禁止发生关系
       }
       
       if (Math.random() < intimacyChance) {
@@ -3289,9 +3782,35 @@ export class GameEngine {
     this.autoSave();
   }
 
+  // 获取淫乱度修正值（0级返回0，10级返回1.7）
+  getPromiscuityModifier(): number {
+    const level = this.state.promiscuityLevel || 5;
+    if (level === 0) return 0; // 0级：完全禁用
+    // 1-9级：线性增长，10级：1.7倍
+    if (level === 10) return 1.7;
+    return 0.1 + (level - 1) * 0.1; // 1级=0.1, 2级=0.2, ..., 9级=0.9
+  }
+
   // 性欲处理系统
   trySexualRelief(p: Character): boolean {
-    // 只处理淫乱特性的居民
+    const promiscuityModifier = this.getPromiscuityModifier();
+    
+    // 0级淫乱度：完全禁用性欲系统（除了死宅）
+    if (promiscuityModifier === 0 && !p.hasTrait('otaku')) {
+      return false;
+    }
+    
+    // 死宅特质：在家进行鹿观或扣扣
+    if (p.hasTrait('otaku')) {
+      // 死宅几乎总是待在家里，通过鹿观或扣扣释放性欲
+      if (p.sexualDesire > 50 && Math.random() < 0.7) {
+        this.doMasturbation(p);
+        return true;
+      }
+      return false;
+    }
+    
+    // 只处理淫乱特性的居民（受淫乱度修正影响）
     if (!p.hasTrait('promiscuous')) {
       return false;
     }
@@ -3309,9 +3828,9 @@ export class GameEngine {
       }
     }
 
-    // 淫乱的人：寻找炮友
-    if (Math.random() < 0.6) {
-      // 60%概率寻找炮友
+    // 淫乱的人：寻找炮友（受淫乱度修正）
+    const fwbChance = 0.6 * promiscuityModifier;
+    if (Math.random() < fwbChance) {
       const fwb = this.findFWB(p);
       if (fwb) {
         this.startFWBRelief(p, fwb);
@@ -3347,6 +3866,12 @@ export class GameEngine {
 
   // 寻找炮友
   findFWB(p: Character): Character | null {
+    // 0级淫乱度：禁止寻找炮友
+    const promiscuityModifier = this.getPromiscuityModifier();
+    if (promiscuityModifier === 0) {
+      return null;
+    }
+    
     // 优先从已有炮友列表中选择
     if (p.fwbList.length > 0) {
       const availableFWBs = p.fwbList
@@ -3373,6 +3898,12 @@ export class GameEngine {
 
     if (promiscuousCandidates.length > 0) {
       const newFWB = choose(promiscuousCandidates);
+      // 0级淫乱度：禁止建立炮友关系
+      const promiscuityModifier = this.getPromiscuityModifier();
+      if (promiscuityModifier === 0) {
+        return null;
+      }
+      
       // 建立炮友关系（可以和小三关系并存）
       if (!p.fwbList.includes(newFWB.name)) {
         p.fwbList.push(newFWB.name);
@@ -3422,6 +3953,12 @@ export class GameEngine {
 
   // 劝良从娼：说服非淫乱特性的居民成为炮友
   persuadeToFWB(persuader: Character, target: Character): boolean {
+    // 0级淫乱度：禁止说服成为炮友
+    const promiscuityModifier = this.getPromiscuityModifier();
+    if (promiscuityModifier === 0) {
+      return false;
+    }
+    
     // 计算说服概率
     let persuadeChance = 0;
 
@@ -3502,6 +4039,9 @@ export class GameEngine {
 
     // 随机波动
     persuadeChance += rand(-10, 10);
+    
+    // 应用淫乱度修正
+    persuadeChance *= promiscuityModifier;
 
     // 基础阈值：50（需要一定的说服概率才能成功）
     const threshold = 50;
@@ -4125,18 +4665,21 @@ export class GameEngine {
     const totalMoney = aliveChars.reduce((sum, c) => sum + c.money, 0);
     const avgMoney = totalMoney / aliveChars.length;
     
-    // 找出财富远高于平均的居民（超过平均值的3倍）
-    const richTargets = aliveChars.filter(c => c.money > avgMoney * 3 && c.money > 100);
-    
-    if (richTargets.length === 0) return;
-    
-    // 对每个富有的目标，检查是否被抢劫
-    richTargets.forEach(target => {
-      // 计算被抢劫的基础概率（财富越高，概率越高）
-      const wealthRatio = target.money / avgMoney;
-      let robberyChance = Math.min(0.3, (wealthRatio - 3) * 0.05); // 最高30%概率
+    // 所有的人都有概率被抢劫（不只是富人）
+    // 对每个目标，检查是否被抢劫
+    aliveChars.forEach(target => {
+      // 计算被抢劫的基础概率
+      let robberyChance = 0.01; // 基础概率1%（每小时）
       
-      // 每小时检查一次，所以概率要除以60（约1.67%每小时）
+      // 财富越高，被抢劫概率越高
+      if (target.money > avgMoney * 3 && target.money > 100) {
+        const wealthRatio = target.money / avgMoney;
+        robberyChance = Math.min(0.3, (wealthRatio - 3) * 0.05); // 最高30%概率
+      } else if (target.money > avgMoney && target.money > 50) {
+        robberyChance = 0.005; // 中等财富0.5%概率
+      }
+      
+      // 每小时检查一次，所以概率要除以60
       robberyChance = robberyChance / 60;
       
       if (Math.random() < robberyChance) {
@@ -4181,6 +4724,14 @@ export class GameEngine {
   
   // 执行抢劫
   executeRobbery(robber: Character, target: Character) {
+    // 建立关系（如果还没有）
+    if (!target.relationships[robber.name]) {
+      target.relationships[robber.name] = { love: 0, status: 'stranger' };
+    }
+    if (!robber.relationships[target.name]) {
+      robber.relationships[target.name] = { love: 0, status: 'stranger' };
+    }
+    
     // 计算抢劫成功概率
     let successChance = 0.5; // 基础成功率50%
     
@@ -4207,12 +4758,6 @@ export class GameEngine {
       robber.money += robberyAmount;
       
       // 降低好感度
-      if (!target.relationships[robber.name]) {
-        target.relationships[robber.name] = { love: 0, status: 'stranger' };
-      }
-      if (!robber.relationships[target.name]) {
-        robber.relationships[target.name] = { love: 0, status: 'stranger' };
-      }
       target.relationships[robber.name].love = Math.max(0, target.relationships[robber.name].love - 30);
       robber.relationships[target.name].love = Math.max(0, robber.relationships[target.name].love - 20);
       
@@ -4221,21 +4766,203 @@ export class GameEngine {
       robber.happiness = Math.min(100, robber.happiness + rand(5, 10));
       
       this.log(`[💰抢劫] **${robber.name}** 成功抢劫了 **${target.name}** 💰${robberyAmount}元！`, 'drama');
+      
+      // 抢劫成功后，有概率进行劫色
+      const promiscuityModifier = this.getPromiscuityModifier();
+      if (promiscuityModifier > 0 && Math.random() < 0.4) {
+        // 40%概率尝试劫色
+        this.attemptSexualRobbery(robber, target);
+      }
     } else {
-      // 抢劫失败
-      if (!target.relationships[robber.name]) {
-        target.relationships[robber.name] = { love: 0, status: 'stranger' };
+      // 抢劫失败，尝试劫色
+      const promiscuityModifier = this.getPromiscuityModifier();
+      if (promiscuityModifier > 0 && Math.random() < 0.3) {
+        // 30%概率尝试劫色
+        this.attemptSexualRobbery(robber, target);
+      } else {
+        // 普通抢劫失败
+        target.relationships[robber.name].love = Math.max(0, target.relationships[robber.name].love - 10);
+        robber.relationships[target.name].love = Math.max(0, robber.relationships[target.name].love - 5);
+        
+        target.happiness = Math.max(0, target.happiness - rand(3, 8));
+        robber.happiness = Math.max(0, robber.happiness - rand(5, 10));
+        
+        this.log(`[❌抢劫失败] **${robber.name}** 试图抢劫 **${target.name}**，但失败了！`, 'reject');
       }
-      if (!robber.relationships[target.name]) {
-        robber.relationships[target.name] = { love: 0, status: 'stranger' };
+    }
+  }
+  
+  // 尝试劫色
+  attemptSexualRobbery(robber: Character, target: Character) {
+    const promiscuityModifier = this.getPromiscuityModifier();
+    
+    // 0级淫乱度：禁止劫色
+    if (promiscuityModifier === 0) {
+      return;
+    }
+    
+    // 建立关系（如果还没有）
+    if (!target.relationships[robber.name]) {
+      target.relationships[robber.name] = { love: 0, status: 'stranger' };
+    }
+    if (!robber.relationships[target.name]) {
+      robber.relationships[target.name] = { love: 0, status: 'stranger' };
+    }
+    
+    const targetRel = target.relationships[robber.name];
+    const robberRel = robber.relationships[target.name];
+    
+    // 计算拒绝劫色的概率
+    let rejectChance = 0.5; // 基础拒绝概率50%
+    
+    // 易怒且小气的人拒绝抢劫的概率提高
+    if (target.personality.name === '易怒' && target.hasTrait('stingy')) {
+      rejectChance = 0.9; // 90%概率拒绝
+    } else if (target.personality.name === '易怒') {
+      rejectChance = 0.7; // 70%概率拒绝
+    } else if (target.hasTrait('stingy')) {
+      rejectChance = 0.6; // 60%概率拒绝
+    }
+    
+    // 保守特质的人拒绝劫色的概率提高
+    if (target.hasTrait('conservative')) {
+      rejectChance = Math.min(0.95, rejectChance + 0.3); // 增加30%拒绝概率
+    }
+    
+    if (Math.random() < rejectChance) {
+      // 拒绝劫色
+      target.happiness = Math.max(0, target.happiness - rand(5, 10));
+      robber.happiness = Math.max(0, robber.happiness - rand(3, 8));
+      
+      targetRel.love = Math.max(0, targetRel.love - rand(15, 25));
+      robberRel.love = Math.max(0, robberRel.love - rand(5, 15));
+      
+      this.log(`[❌拒绝劫色] **${target.name}** 拒绝了 **${robber.name}** 的劫色要求！`, 'reject');
+      
+      // 如果被拒绝，有可能发生强碱
+      if (Math.random() < 0.5) {
+        // 50%概率尝试强碱
+        this.attemptRape(robber, target, targetRel, robberRel);
       }
-      target.relationships[robber.name].love = Math.max(0, target.relationships[robber.name].love - 10);
-      robber.relationships[target.name].love = Math.max(0, robber.relationships[target.name].love - 5);
+    } else {
+      // 接受劫色，发生关系
+      target.happiness = Math.max(0, target.happiness - rand(15, 30));
+      robber.happiness = Math.min(100, robber.happiness + rand(5, 15));
       
-      target.happiness = Math.max(0, target.happiness - rand(3, 8));
-      robber.happiness = Math.max(0, robber.happiness - rand(5, 10));
+      targetRel.love = Math.max(0, targetRel.love - rand(20, 40));
+      robberRel.love = Math.max(0, robberRel.love - rand(10, 20));
       
-      this.log(`[❌抢劫失败] **${robber.name}** 试图抢劫 **${target.name}**，但失败了！`, 'reject');
+      this.log(`[🚨劫色] **${robber.name}** 对 **${target.name}** 进行了劫色...`, 'drama');
+      
+      // 如果被发生者是淫乱特质，有概率成为炮友
+      if (target.hasTrait('promiscuous') && Math.random() < 0.2) {
+        // 20%概率成为炮友
+        if (!robber.fwbList.includes(target.name)) {
+          robber.fwbList.push(target.name);
+        }
+        if (!target.fwbList.includes(robber.name)) {
+          target.fwbList.push(robber.name);
+        }
+        targetRel.love = Math.min(100, targetRel.love + rand(5, 15)); // 好感度略微回升
+        this.log(`[💋发展炮友] **${target.name}** 和 **${robber.name}** 发展成了炮友关系！`, 'drama');
+      }
+      
+      // 可能怀孕
+      if (Math.random() < 0.3 && !target.pregnant && !robber.pregnant) {
+        const whoGetsPregnant = Math.random() < 0.5 ? target : robber;
+        const other = whoGetsPregnant === target ? robber : target;
+        if (whoGetsPregnant.contraceptives <= 0) {
+          const pregnancyDuration = 280 * 24 * 60;
+          whoGetsPregnant.pregnant = {
+            father: other.name,
+            dueDate: this.getAbsoluteTime() + pregnancyDuration
+          };
+          this.log(`[🤰怀孕] **${whoGetsPregnant.name}** 在劫色事件后怀孕了！`, 'drama');
+        }
+      }
+    }
+  }
+  
+  // 尝试强碱
+  attemptRape(robber: Character, target: Character, targetRel: Relationship, robberRel: Relationship) {
+    const promiscuityModifier = this.getPromiscuityModifier();
+    
+    // 0级淫乱度：禁止强碱
+    if (promiscuityModifier === 0) {
+      return;
+    }
+    
+    // 计算强碱成功概率
+    let rapeChance = 0.4; // 基础成功率40%
+    
+    // 抢劫者性格和特质影响
+    if (robber.personality.name === '冲动') {
+      rapeChance *= 1.3; // 冲动的人更容易成功
+    } else if (robber.personality.name === '勇敢') {
+      rapeChance *= 1.2; // 勇敢的人更容易成功
+    } else if (robber.personality.name === '胆小') {
+      rapeChance *= 0.4; // 胆小的人不容易成功
+    }
+    
+    if (robber.hasTrait('impulsive')) {
+      rapeChance *= 1.2; // 冲动特质增加成功率
+    }
+    if (robber.hasTrait('coward')) {
+      rapeChance *= 0.5; // 胆小特质降低成功率
+    }
+    
+    // 目标性格和特质影响
+    if (target.personality.name === '易怒' && target.hasTrait('coward')) {
+      rapeChance *= 0.3; // 易怒且胆小的人更难被强碱
+    } else if (target.personality.name === '易怒') {
+      rapeChance *= 0.6; // 易怒的人更难被强碱
+    } else if (target.hasTrait('coward')) {
+      rapeChance *= 0.7; // 胆小的人更难被强碱
+    }
+    
+    if (target.hasTrait('conservative')) {
+      rapeChance *= 0.6; // 保守特质降低成功率
+    }
+    if (target.hasTrait('rational')) {
+      rapeChance *= 0.7; // 理性特质降低成功率
+    }
+    
+    // 应用淫乱度修正
+    rapeChance *= promiscuityModifier;
+    rapeChance = Math.max(0.1, Math.min(0.9, rapeChance));
+    
+    if (Math.random() < rapeChance) {
+      // 强碱成功
+      target.happiness = Math.max(0, target.happiness - rand(20, 40));
+      robber.happiness = Math.min(100, robber.happiness + rand(5, 15));
+      
+      targetRel.love = Math.max(0, targetRel.love - rand(40, 60));
+      robberRel.love = Math.max(0, robberRel.love - rand(15, 25));
+      
+      this.log(`[🚨强碱] **${robber.name}** 对 **${target.name}** 进行了强碱...`, 'drama');
+      
+      // 可能怀孕
+      if (Math.random() < 0.3 && !target.pregnant && !robber.pregnant) {
+        const whoGetsPregnant = Math.random() < 0.5 ? target : robber;
+        const other = whoGetsPregnant === target ? robber : target;
+        if (whoGetsPregnant.contraceptives <= 0) {
+          const pregnancyDuration = 280 * 24 * 60;
+          whoGetsPregnant.pregnant = {
+            father: other.name,
+            dueDate: this.getAbsoluteTime() + pregnancyDuration
+          };
+          this.log(`[🤰怀孕] **${whoGetsPregnant.name}** 在强碱事件后怀孕了！`, 'drama');
+        }
+      }
+    } else {
+      // 强碱失败
+      target.happiness = Math.max(0, target.happiness - rand(5, 15));
+      robber.happiness = Math.max(0, robber.happiness - rand(10, 20));
+      
+      targetRel.love = Math.max(0, targetRel.love - rand(20, 30));
+      robberRel.love = Math.max(0, robberRel.love - rand(10, 20));
+      
+      this.log(`[❌强碱失败] **${robber.name}** 试图对 **${target.name}** 进行强碱，但失败了！`, 'reject');
     }
   }
 
