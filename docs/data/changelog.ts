@@ -8,7 +8,7 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.6';
+export const GAME_VERSION = '1.6.1';
 
 // 秘籍文本加密函数（生成乱码效果，类似"棍斤拷"）
 const encryptSecret = (text: string): string => {
@@ -42,6 +42,21 @@ const encryptSecret = (text: string): string => {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.6.1',
+    title: '养生洗脚店与生活qol',
+    date: '2025/11/22 15:35',
+    added: [
+      '洗脚店养生服务：新增5种养生服务（足底悠韵368元、中式疗韵598元、天然轻韵698元、太空漫步898元、悠享无界1000元起）',
+      '悠享无界额外加费：根据顾客满意程度，额外加费0-500元',
+      '新预设"饥荒云玩家集中地"：包含15个初始居民',
+      '空存档确认弹窗：点击空存档时弹出确认弹窗，询问是否创建新游戏'
+    ],
+    changed: [
+      '洗脚店收入分配调整：10%用于公司账户升级，50%给老板，40%给卖银者均分，金额精确到小数点后两位',
+      '平衡消费价格：电影院和酒店所有商品价格降低20%',
+    ]
+  },
   {
     version: '1.6',
     title: '洗脚店之夜！',

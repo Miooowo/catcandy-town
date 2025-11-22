@@ -39,11 +39,11 @@ export const BUILDINGS_BLUEPRINT: BuildingBlueprint[] = [
     id: "hotel", name: "🏩 快捷酒店", cost: 800, desc: "懂得都懂", effect: "ntr",
     price: 0, open: 0, close: 24, jobs: ["前台", "保洁"],
     products: [
-      { id: "single_room", name: "单人房", price: 50 },
-      { id: "double_room", name: "双人房", price: 120 },
-      { id: "king_bed", name: "大床房", price: 210 },
-      { id: "executive_room", name: "领导标间", price: 350 },
-      { id: "suite", name: "高级套房", price: 670 }
+      { id: "single_room", name: "单人房", price: 40 },
+      { id: "double_room", name: "双人房", price: 96 },
+      { id: "king_bed", name: "大床房", price: 168 },
+      { id: "executive_room", name: "领导标间", price: 280 },
+      { id: "suite", name: "高级套房", price: 536 }
     ]
   },
   { 
@@ -53,15 +53,22 @@ export const BUILDINGS_BLUEPRINT: BuildingBlueprint[] = [
   { id: "cinema", name: "🎬 电影院", cost: 400, desc: "恢复心情快", effect: "fun",
     price: 0, open: 10, close: 24, jobs: ["售票员"],
     products: [
-      { id: "japan_action", name: "岛国动作片", price: 50 },
-      { id: "hero_save", name: "英雄救世片", price: 40 },
-      { id: "green_kids", name: "绿色儿童片", price: 20 },
-      { id: "premium_anime", name: "高级动画片", price: 35 }
+      { id: "japan_action", name: "岛国动作片", price: 40 },
+      { id: "hero_save", name: "英雄救世片", price: 32 },
+      { id: "green_kids", name: "绿色儿童片", price: 16 },
+      { id: "premium_anime", name: "高级动画片", price: 28 }
     ]
   },
   { 
     id: "footshop", name: "💆 神秘洗脚店", cost: 600, desc: "涩情交易场所", effect: "ntr",
-    price: 0, open: 0, close: 24, jobs: ["老板"], products: [] 
+    price: 0, open: 0, close: 24, jobs: ["老板"], 
+    products: [
+      { id: "foot_massage", name: "足底悠韵", price: 368 },
+      { id: "chinese_massage", name: "中式疗韵", price: 598 },
+      { id: "natural_massage", name: "天然轻韵", price: 698 },
+      { id: "space_walk", name: "太空漫步", price: 898 },
+      { id: "unlimited_bliss", name: "悠享无界", price: 1000 }
+    ]
   },
   { 
     id: "hospital", name: "🏥 医院", cost: 1500, desc: "分娩或堕胎", effect: "medical",

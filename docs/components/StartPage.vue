@@ -76,6 +76,10 @@ const PRESETS: Record<string, { townName: string; characterNames: string[] }> = 
   '233906077': {
     townName: '快乐小镇',
     characterNames: ['Mio', '老吕', 'Ler', 'Dofa', 'Ter', '三三', '画画', '阿湫', '蓝楹花', '绯衣响', '九八', '大切']
+  },
+  '954731305': {
+    townName: '饥荒云玩家集中地',
+    characterNames: ['kp公主', '企鹅', '污妖王', 'lan', '好黑好黑的大黑', '黄皮卡', 'alt', '太空人', '小星', '霓虹', '逆缘', '雨荧', '玄', '小钟']
   }
 };
 

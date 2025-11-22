@@ -11,6 +11,10 @@ const emit = defineEmits<{
 const SLOT_COUNT = 5;
 const slots = ref<Array<{ hasSave: boolean; saveTime?: string; townName?: string; days?: number }>>([]);
 
+// 确认弹窗状态
+const showConfirmModal = ref(false);
+const selectedSlot = ref<number | null>(null);
+
 // 加载存档信息
 const loadSlotInfo = () => {
   slots.value = [];
@@ -38,7 +42,30 @@ const loadSlotInfo = () => {
 
 // 选择存档槽位
 const selectSlot = (slot: number) => {
-  emit('select-slot', slot);
+  const slotInfo = slots.value[slot - 1];
+  if (!slotInfo.hasSave) {
+    // 空存档，显示确认弹窗
+    selectedSlot.value = slot;
+    showConfirmModal.value = true;
+  } else {
+    // 有存档，直接加载
+    emit('select-slot', slot);
+  }
+};
+
+// 确认创建新游戏
+const confirmNewGame = () => {
+  if (selectedSlot.value) {
+    showConfirmModal.value = false;
+    emit('new-game', selectedSlot.value);
+    selectedSlot.value = null;
+  }
+};
+
+// 取消创建新游戏
+const cancelNewGame = () => {
+  showConfirmModal.value = false;
+  selectedSlot.value = null;
 };
 
 // 新建游戏（可以选择槽位）
@@ -84,6 +111,23 @@ onMounted(() => {
         <button @click="newGame" class="btn-new-game">
           🎮 新建游戏
         </button>
+      </div>
+    </div>
+    
+    <!-- 确认创建新游戏弹窗 -->
+    <div v-if="showConfirmModal" class="confirm-modal-overlay" @click.self="cancelNewGame">
+      <div class="confirm-modal-content">
+        <div class="confirm-modal-header">
+          <h3 class="confirm-modal-title">📭 空存档</h3>
+          <button class="confirm-modal-close" @click="cancelNewGame">×</button>
+        </div>
+        <div class="confirm-modal-body">
+          <p class="confirm-modal-message">此存档为空，是否创建新的游戏？</p>
+        </div>
+        <div class="confirm-modal-footer">
+          <button @click="cancelNewGame" class="btn-cancel">取消</button>
+          <button @click="confirmNewGame" class="btn-confirm">创建新游戏</button>
+        </div>
       </div>
     </div>
   </div>
@@ -343,6 +387,175 @@ onMounted(() => {
     padding: 18px 60px;
     font-size: 1.4rem;
   }
+}
+
+/* 确认弹窗样式 */
+.confirm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.confirm-modal-content {
+  background: white;
+  border-radius: 16px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+  overflow: hidden;
+}
+
+:global(.dark-mode) .confirm-modal-content {
+  background: #2d2d2d;
+  color: #e5e5e5;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirm-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #eee;
+}
+
+:global(.dark-mode) .confirm-modal-header {
+  border-bottom-color: #404040;
+}
+
+.confirm-modal-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+}
+
+:global(.dark-mode) .confirm-modal-title {
+  color: #e5e5e5;
+}
+
+.confirm-modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.confirm-modal-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+:global(.dark-mode) .confirm-modal-close:hover {
+  background: #404040;
+  color: #e5e5e5;
+}
+
+.confirm-modal-body {
+  padding: 24px;
+}
+
+.confirm-modal-message {
+  margin: 0;
+  font-size: 16px;
+  color: #666;
+  text-align: center;
+  line-height: 1.6;
+}
+
+:global(.dark-mode) .confirm-modal-message {
+  color: #bbb;
+}
+
+.confirm-modal-footer {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #eee;
+  justify-content: flex-end;
+}
+
+:global(.dark-mode) .confirm-modal-footer {
+  border-top-color: #404040;
+}
+
+.btn-cancel,
+.btn-confirm {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.btn-cancel:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+:global(.dark-mode) .btn-cancel {
+  background: #404040;
+  color: #bbb;
+}
+
+:global(.dark-mode) .btn-cancel:hover {
+  background: #505050;
+  color: #e5e5e5;
+}
+
+.btn-confirm {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-confirm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-confirm:active {
+  transform: translateY(0);
 }
 </style>
 

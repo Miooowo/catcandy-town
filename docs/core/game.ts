@@ -1502,6 +1502,7 @@ export class GameEngine {
   }
 
   // 分配收入：公司账户10%，老板50%，员工40%（所有员工平分，不包括老板）
+  // 洗脚店特殊处理：公司账户10%，老板50%，卖银者40%均分
   distributeRevenue(building: Building, revenue: number) {
     if (building.staff.length === 0) {
       // 没有员工，收入进入镇库
@@ -1509,6 +1510,71 @@ export class GameEngine {
       return;
     }
     
+    // 洗脚店特殊处理
+    if (building.id === 'footshop') {
+      // 洗脚店：10%公司账户，50%老板，40%卖银者均分
+      // 金额精确到小数点后两位
+      const revenueDecimal = Math.round(revenue * 100) / 100;
+      
+      // 公司账户：10%
+      const companyShare = Math.round(revenueDecimal * 0.1 * 100) / 100;
+      building.companyFunds += companyShare;
+      
+      // 老板：50%
+      const bossShare = Math.round(revenueDecimal * 0.5 * 100) / 100;
+      const bossName = building.staff[0];
+      const boss = this.state.chars.find(c => c.name === bossName);
+      if (boss) {
+        boss.money = Math.round((boss.money + bossShare) * 100) / 100;
+        boss.incomeStats.work = Math.round((boss.incomeStats.work + bossShare) * 100) / 100;
+        boss.incomeStats.total = Math.round((boss.incomeStats.total + bossShare) * 100) / 100;
+        // 记录从这个建筑获得的收入
+        if (!boss.buildingIncome) {
+          boss.buildingIncome = {};
+        }
+        boss.buildingIncome[building.id] = Math.round(((boss.buildingIncome[building.id] || 0) + bossShare) * 100) / 100;
+      }
+      
+      // 卖银者：40%均分
+      const prostituteShare = Math.round(revenueDecimal * 0.4 * 100) / 100;
+      const prostitutes = building.prostitutes || [];
+      if (prostitutes.length > 0) {
+        const sharePerProstitute = Math.round((prostituteShare / prostitutes.length) * 100) / 100;
+        prostitutes.forEach(prostituteName => {
+          const prostitute = this.state.chars.find(c => c.name === prostituteName);
+          if (prostitute) {
+            prostitute.money = Math.round((prostitute.money + sharePerProstitute) * 100) / 100;
+            prostitute.incomeStats.work = Math.round((prostitute.incomeStats.work + sharePerProstitute) * 100) / 100;
+            prostitute.incomeStats.total = Math.round((prostitute.incomeStats.total + sharePerProstitute) * 100) / 100;
+            // 记录从这个建筑获得的收入
+            if (!prostitute.buildingIncome) {
+              prostitute.buildingIncome = {};
+            }
+            prostitute.buildingIncome[building.id] = Math.round(((prostitute.buildingIncome[building.id] || 0) + sharePerProstitute) * 100) / 100;
+          }
+        });
+      } else {
+        // 如果没有卖银者，40%也归老板
+        if (boss) {
+          boss.money = Math.round((boss.money + prostituteShare) * 100) / 100;
+          boss.incomeStats.work = Math.round((boss.incomeStats.work + prostituteShare) * 100) / 100;
+          boss.incomeStats.total = Math.round((boss.incomeStats.total + prostituteShare) * 100) / 100;
+          // 记录从这个建筑获得的收入
+          if (!boss.buildingIncome) {
+            boss.buildingIncome = {};
+          }
+          boss.buildingIncome[building.id] = Math.round(((boss.buildingIncome[building.id] || 0) + prostituteShare) * 100) / 100;
+        }
+      }
+      
+      // 累计当天员工收入（用于计算日均收入）
+      const staffTotalIncome = Math.round((revenueDecimal - companyShare) * 100) / 100;
+      building.dailyStaffIncome += staffTotalIncome;
+      
+      return;
+    }
+    
+    // 其他建筑：通用分配逻辑
     // 确保收入是整数
     const revenueInt = Math.floor(revenue);
     
@@ -2370,23 +2436,42 @@ export class GameEngine {
           requiredMultiplier = 0.7; // 大方的人只需要70%的钱就愿意消费
         }
         
-        const productPrice = Math.floor(selectedProduct.price); // 确保价格是整数
+        let productPrice = Math.floor(selectedProduct.price); // 基础价格（整数）
+        
+        // 洗脚店"悠享无界"服务：根据满意程度额外加费
+        if (venue.id === 'footshop' && selectedProduct.id === 'unlimited_bliss') {
+          // 基础价格1000，根据满意程度额外加费（0-500随机）
+          const satisfactionBonus = Math.floor(Math.random() * 501); // 0-500随机额外费用
+          productPrice = 1000 + satisfactionBonus;
+          if (satisfactionBonus > 0) {
+            this.log(`[💆悠享无界] **${p.name}** 对服务非常满意，额外支付了 💰${satisfactionBonus}元小费！`, 'event');
+          }
+        }
+        
         const requiredMoney = Math.floor(productPrice * requiredMultiplier);
         if (p.money < requiredMoney) {
           this.doRest(p, { id: '', name: "路边", effect: "none", price: 0, products: [] });
           return;
         }
         
-        // 先扣除费用
-        p.money -= productPrice;
+        // 先扣除费用（洗脚店需要精确到小数点后两位）
+        if (venue.id === 'footshop') {
+          p.money = Math.round((p.money - productPrice) * 100) / 100;
+        } else {
+          p.money -= productPrice;
+        }
         
         // 立即分配顾客消费收入（在检查喝晕之前，确保收入被分配）
         if (venue.id) {
           const building = this.state.buildings.find(b => b.id === venue.id);
           if (building && building.isBuilt) {
             if (building.staff.length > 0) {
-              // 有员工的建筑：按比例分配收入
-              this.distributeRevenue(building, productPrice);
+              // 有员工的建筑：按比例分配收入（洗脚店需要精确到小数点后两位）
+              if (venue.id === 'footshop') {
+                this.distributeRevenue(building, productPrice);
+              } else {
+                this.distributeRevenue(building, productPrice);
+              }
             } else {
               // 没有员工的建筑（如公园）：消费进入镇库
               this.state.townMoney += productPrice;
