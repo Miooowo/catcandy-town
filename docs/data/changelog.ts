@@ -7,9 +7,68 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.5.2';
+export const GAME_VERSION = '1.5.3';
+
+// 秘籍文本加密函数（生成乱码效果，类似"棍斤拷"）
+const encryptSecret = (text: string): string => {
+  // 秘籍部分需要加密的字符映射
+  const secretPart = '↑↑↓↓←→←→BABA';
+  
+  // 使用生僻字和乱码字符替换秘籍部分
+  // 模拟编码错误产生的乱码效果（类似"棍斤拷"）
+  const garbledSequence = '棍斤拷烫烫烫锟斤拷烫烫烫';
+  
+  // 找到秘籍部分并替换为乱码
+  const secretIndex = text.indexOf(secretPart);
+  if (secretIndex !== -1) {
+    const before = text.substring(0, secretIndex);
+    const after = text.substring(secretIndex + secretPart.length);
+    // 使用乱码序列替换秘籍
+    return before + garbledSequence + after;
+  }
+  
+  // 如果没有找到完整秘籍，对单个字符进行替换
+  const charMap: Record<string, string> = {
+    '↑': '棍',
+    '↓': '斤',
+    '←': '拷',
+    '→': '烫',
+    'B': '锟',
+    'A': '烫'
+  };
+  
+  return text.split('').map(char => charMap[char] || char).join('');
+};
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.5.3',
+    date: '2025/11/22 12:57',
+      added: [
+        '调试面板：新增调试菜单功能，可在游戏内快速跳天数（5/10/14/30/60/90/180/360天）',
+        encryptSecret('秘籍系统：输入秘籍 ↑↑↓↓←→←→BABA 可解锁调试面板，并显示精美的秘籍弹窗'),
+        '游戏日志指令：在游戏日志面板添加指令输入框，支持 （该指令已加密隐藏） 指令启用调试模式',
+        '调试按钮优化：调试按钮初始隐藏，切换存档或新建游戏时自动隐藏'
+      ],
+    changed: [
+      'UI优化：将手机端侧边栏按钮移到城镇名称左边',
+      '旁观者名显示：在版本信息旁边显示旁观者名，点击铅笔图标可编辑',
+      '重置按钮移至侧边栏：重置按钮改名为"全局重置"并移至侧边栏',
+      '存档重roll功能：新增存档重roll按钮，可重新随机生成居民特质并重置游戏时间'
+    ]
+  },
+  {
+    version: '1.5.2.1',
+    date: '2025/11/22',
+    added: [
+      '存档重roll功能：可以重置当前存档的游戏数据而不删除存档槽位'
+    ],
+    changed: [
+      'UI优化：将手机端侧边栏按钮移到城镇名称左边',
+      '旁观者名显示：在版本信息旁边显示旁观者名，点击铅笔图标可编辑',
+      '重置按钮移至侧边栏：重置按钮改名为"全局重置"并移至侧边栏'
+    ]
+  },
   {
     version: '1.5.2',
     date: '2025/11/22 11:19',

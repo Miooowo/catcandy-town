@@ -153,21 +153,26 @@ onUnmounted(() => {
 
 <style scoped>
 .char-card {
-  padding: 8px;
+  padding: 6px;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border-left: 4px solid;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  border-left: 3px solid;
   transition: all 0.2s ease;
   min-width: 0;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  font-size: 11px;
 }
 
 @media (min-width: 768px) {
   .char-card {
     padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-left: 4px solid;
+    font-size: 14px;
   }
 }
 
@@ -201,7 +206,13 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+@media (min-width: 768px) {
+  .char-header {
+    margin-bottom: 8px;
+  }
 }
 
 .char-name-section {
@@ -213,7 +224,8 @@ onUnmounted(() => {
 
 .char-name {
   color: #1f2937;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
   transition: color 0.3s ease;
 }
 
@@ -272,9 +284,17 @@ onUnmounted(() => {
 .traits-section {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-  margin-bottom: 6px;
+  gap: 3px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+@media (min-width: 768px) {
+  .traits-section {
+    gap: 4px;
+    margin-top: 6px;
+    margin-bottom: 6px;
+  }
 }
 
 .trait-badge {
@@ -301,11 +321,20 @@ onUnmounted(() => {
 .job-info {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  margin-bottom: 6px;
-  font-size: 11px;
+  gap: 4px;
+  margin-top: 3px;
+  margin-bottom: 4px;
+  font-size: 10px;
   flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .job-info {
+    gap: 6px;
+    margin-top: 4px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
 }
 
 .job-text {
@@ -350,12 +379,19 @@ onUnmounted(() => {
 }
 
 .hp-bar-container {
-  height: 4px;
+  height: 3px;
   background: #f3f4f6;
   border-radius: 2px;
   overflow: hidden;
-  margin: 8px 0;
+  margin: 4px 0;
   transition: background-color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .hp-bar-container {
+    height: 4px;
+    margin: 8px 0;
+  }
 }
 
 :global(.dark-mode) .hp-bar-container {
@@ -369,13 +405,20 @@ onUnmounted(() => {
 }
 
 .sexual-desire-bar-container {
-  height: 4px;
+  height: 3px;
   background: #f3f4f6;
   border-radius: 2px;
   overflow: hidden;
-  margin: 6px 0;
+  margin: 4px 0;
   position: relative;
   transition: background-color 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .sexual-desire-bar-container {
+    height: 4px;
+    margin: 6px 0;
+  }
 }
 
 :global(.dark-mode) .sexual-desire-bar-container {
@@ -401,12 +444,20 @@ onUnmounted(() => {
 }
 
 .char-action {
-  font-size: 11px;
+  font-size: 10px;
   color: #6b7280;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   transition: color 0.3s ease;
+  margin-top: 4px;
+}
+
+@media (min-width: 768px) {
+  .char-action {
+    font-size: 12px;
+    margin-top: 6px;
+  }
 }
 
 :global(.dark-mode) .char-action {

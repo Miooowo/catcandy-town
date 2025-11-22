@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
+import { computed, inject, ref, onMounted, onUnmounted } from 'vue';
 import { gameInstance } from '../core/game';
 import { BUILDINGS_BLUEPRINT } from '../data/blueprints';
 import { GAME_VERSION } from '../data/changelog';
@@ -59,6 +59,8 @@ const emit = defineEmits<{
   (e: 'show-changelog'): void;
   (e: 'show-multiplayer'): void;
   (e: 'show-rankings'): void;
+  (e: 'toggle-sidebar'): void;
+  (e: 'show-debug'): void;
 }>();
 
 const handleShowRelationshipTree = () => {
@@ -77,9 +79,25 @@ const handleShowRankings = () => {
   emit('show-rankings');
 };
 
+const handleShowDebug = () => {
+  emit('show-debug');
+};
+
 const handleChangeObserverName = () => {
   gameInstance.changeObserverName();
 };
+
+const handleToggleSidebar = () => {
+  emit('toggle-sidebar');
+};
+
+const handleRollSave = () => {
+  if (confirm('确定要重roll居民特质吗？这将重新随机生成所有居民的特质和性格，其他数据保持不变！')) {
+    gameInstance.rollCurrentSave();
+  }
+};
+
+const observerName = computed(() => gameInstance.state.observerName || '未设置');
 
 const build = (id: string) => {
   // 原始游戏不需要位置参数，只需要建筑ID
@@ -90,11 +108,96 @@ const build = (id: string) => {
 // 从父组件获取暗色模式状态
 const isDarkMode = inject<{ value: boolean }>('isDarkMode', ref({ value: false }));
 const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
+
+// 检测是否在开发者模式
+const isDevMode = ref(false);
+
+// 秘籍：↑↑↓↓←→←→BABA
+const konamiCode = [
+  'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
+  'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight',
+  'KeyB', 'KeyA', 'KeyB', 'KeyA'
+];
+let handleStorage: ((e: StorageEvent) => void) | null = null;
+let handleDebugEnabled: ((e: Event) => void) | null = null;
+let handleDebugDisabled: ((e: Event) => void) | null = null;
+let checkInterval: number | null = null;
+
+onMounted(() => {
+  if (typeof window === 'undefined') return;
+  
+  // 初始化：默认隐藏，只从localStorage读取（如果之前通过秘籍启用过）
+  if (typeof localStorage !== 'undefined') {
+    isDevMode.value = localStorage.getItem('debug_mode') === 'true';
+  } else {
+    isDevMode.value = false;
+  }
+  
+  // 监听localStorage变化
+  handleStorage = (e: StorageEvent) => {
+    if (e.key === 'debug_mode') {
+      isDevMode.value = e.newValue === 'true';
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+  
+  // 监听自定义事件（从LogPanel触发）
+  handleDebugEnabled = () => {
+    if (typeof localStorage !== 'undefined') {
+      isDevMode.value = localStorage.getItem('debug_mode') === 'true';
+    }
+  };
+  window.addEventListener('debug-mode-enabled', handleDebugEnabled);
+  
+  // 监听调试模式禁用事件（从game.ts触发，切换存档或重置时）
+  handleDebugDisabled = () => {
+    isDevMode.value = false;
+  };
+  window.addEventListener('debug-mode-disabled', handleDebugDisabled);
+  
+  // 定期检查localStorage（用于同一窗口内的更新）
+  const checkDebugMode = () => {
+    if (typeof localStorage !== 'undefined') {
+      const currentValue = localStorage.getItem('debug_mode') === 'true';
+      if (currentValue !== isDevMode.value) {
+        isDevMode.value = currentValue;
+      }
+    }
+  };
+  
+  checkInterval = window.setInterval(checkDebugMode, 500);
+});
+
+onUnmounted(() => {
+  if (typeof window === 'undefined') return;
+  
+  // 清理事件监听器
+  if (handleStorage !== null) {
+    window.removeEventListener('storage', handleStorage);
+  }
+  
+  if (handleDebugEnabled !== null) {
+    window.removeEventListener('debug-mode-enabled', handleDebugEnabled);
+  }
+  
+  if (handleDebugDisabled !== null) {
+    window.removeEventListener('debug-mode-disabled', handleDebugDisabled);
+  }
+  
+  // 清理定时器
+  if (checkInterval !== null) {
+    window.clearInterval(checkInterval);
+  }
+});
 </script>
 
 <template>
   <div class="control-panel">
     <div class="resources">
+      <!-- 手机端侧边栏切换按钮 -->
+      <button class="sidebar-toggle-mobile" @click="handleToggleSidebar" title="展开侧边栏">
+        ☰
+      </button>
       <div class="res-item">
         <span class="res-name">🏘️ 城镇:</span>
         <span class="res-value">{{ gameInstance.state.townName || '猫果镇' }}</span>
@@ -114,6 +217,11 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
       <div class="res-item version-item" @click="handleShowChangelog" title="查看更新日志">
         <span class="res-name">版本:</span>
         <span class="res-value version-value">v{{ GAME_VERSION }}</span>
+      </div>
+      <div class="res-item observer-item">
+        <span class="res-name">👤 旁观者:</span>
+        <span class="res-value observer-value">{{ observerName }}</span>
+        <button class="observer-edit-btn" @click="handleChangeObserverName" title="编辑旁观者名称">✏</button>
       </div>
     </div>
     <div class="actions">
@@ -156,8 +264,8 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
         <button @click="handleShowRankings" class="btn-rankings" title="查看榜单">📊 榜单</button>
         <button @click="handleShowChangelog" class="btn-changelog" title="查看更新日志">📋 更新日志</button>
         <button @click="handleShowMultiplayer" class="btn-multiplayer" title="多人联机">🌐 多人模式</button>
-        <button @click="handleChangeObserverName" class="btn-observer" title="更改旁观者名称">👤 旁观者名</button>
-        <button @click="handleReset" class="btn-reset" title="重置游戏到初始状态">🗑 重置</button>
+        <button @click="handleRollSave" class="btn-roll" title="存档重roll：重新随机生成所有居民的特质和性格">🎲 存档重roll</button>
+        <button v-if="isDevMode" @click="handleShowDebug" class="btn-debug" title="调试面板">🔧 调试</button>
         <input 
           ref="importFileInput"
           type="file" 
@@ -202,6 +310,39 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+  position: relative;
+}
+
+.sidebar-toggle-mobile {
+  display: none;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s ease;
+  margin-right: 4px;
+}
+
+.sidebar-toggle-mobile:hover {
+  background: #2563eb;
+}
+
+:global(.dark-mode) .sidebar-toggle-mobile {
+  background: #60a5fa;
+}
+
+:global(.dark-mode) .sidebar-toggle-mobile:hover {
+  background: #3b82f6;
+}
+
+@media (max-width: 767px) {
+  .sidebar-toggle-mobile {
+    display: block;
+  }
 }
 
 @media (min-width: 768px) {
@@ -262,6 +403,49 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
 
 :global(.dark-mode) .version-value {
   color: #8b7ef0 !important;
+}
+
+.observer-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.observer-value {
+  color: #667eea !important;
+  font-weight: 600;
+}
+
+:global(.dark-mode) .observer-value {
+  color: #8b7ef0 !important;
+}
+
+.observer-edit-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  color: #667eea;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.observer-edit-btn:hover {
+  background: #f0f0f0;
+  color: #2563eb;
+}
+
+:global(.dark-mode) .observer-edit-btn {
+  color: #8b7ef0;
+}
+
+:global(.dark-mode) .observer-edit-btn:hover {
+  background: #3d3d3d;
+  color: #a5b4fc;
 }
 
 .actions {
@@ -450,6 +634,44 @@ button:active {
 
 .btn-import:hover {
   background: #8e44ad !important;
+}
+
+.btn-roll {
+  background: #8b5cf6 !important;
+  color: white !important;
+  border-color: #7c3aed !important;
+}
+
+.btn-roll:hover {
+  background: #7c3aed !important;
+}
+
+:global(.dark-mode) .btn-roll {
+  background: #7c3aed !important;
+  border-color: #6d28d9 !important;
+}
+
+:global(.dark-mode) .btn-roll:hover {
+  background: #6d28d9 !important;
+}
+
+.btn-debug {
+  background: #f59e0b !important;
+  color: white !important;
+  border-color: #d97706 !important;
+}
+
+.btn-debug:hover {
+  background: #d97706 !important;
+}
+
+:global(.dark-mode) .btn-debug {
+  background: #f59e0b !important;
+  border-color: #d97706 !important;
+}
+
+:global(.dark-mode) .btn-debug:hover {
+  background: #d97706 !important;
 }
 
 .btn-start {

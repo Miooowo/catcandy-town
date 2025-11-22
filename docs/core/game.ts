@@ -1,7 +1,7 @@
 import { reactive } from 'vue';
 import { Character, Relationship } from './character';
 import { Building } from './building';
-import { NAMES, DAYS, rand, choose, TRAITS, hasTraitConflict } from '../data/constants';
+import { NAMES, DAYS, rand, choose, TRAITS, PERSONALITIES, hasTraitConflict } from '../data/constants';
 import { BUILDINGS_BLUEPRINT } from '../data/blueprints';
 
 export interface LogEntry {
@@ -163,6 +163,15 @@ export class GameEngine {
     if (loadResult.success) {
       this.checkAndAddNewChars();
       this.log("📂 读取存档成功！欢迎回来。");
+      
+      // 切换存档时清除调试模式标志
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('debug_mode');
+        // 触发事件通知ControlPanel更新
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('debug-mode-disabled'));
+        }
+      }
     }
     
     return loadResult;
@@ -211,15 +220,84 @@ export class GameEngine {
   }
 
   generateRandomName(): string {
-    const surnames = ['张', '李', '王', '刘', '陈', '杨', '赵', '黄', '周', '吴', '徐', '孙', '胡', '朱', '高', '林', '何', '郭', '马', '罗'];
-    const givenNames = ['伟', '芳', '娜', '秀', '敏', '静', '丽', '强', '磊', '军', '洋', '勇', '艳', '杰', '娟', '涛', '明', '超', '兰', '霞', '平', '刚', '桂', '英'];
+    // 网络风格前缀（中英混合）
+    const prefixes = ['', 'Mr_', 'Ms_', 'Dr_', '超', '赛博', '数字', '虚拟', 'AI_', '终极', '疯狂', '神秘', '暗夜', '星辰', '量子', '赛博朋克', '重生之', '穿越之', '在线', '离线', '已黑化'];
     
-    // 50% 概率使用单字名，50% 概率使用双字名
-    if (Math.random() < 0.5) {
-      return surnames[rand(0, surnames.length - 1)] + givenNames[rand(0, givenNames.length - 1)];
-    } else {
-      return surnames[rand(0, surnames.length - 1)] + givenNames[rand(0, givenNames.length - 1)] + givenNames[rand(0, givenNames.length - 1)];
+    // 网络流行形容词（中文）
+    const cnAdjectives = ['摆烂', '躺平', '内卷', '摸鱼', '真香', '硬核', '佛系', '社恐', '社牛', '破防', '绝绝子', '尊嘟假嘟', '泰酷辣', '栓Q', 'EMO', 'AWSL'];
+    
+    // 网络核心名词（中英混合）
+    const coreWords = ['刺客', '猎人', '法师', '战士', '熊猫', '狐狸', '狼', '龙', '幽灵', '恶魔', '天使', '骑士', '巫师', '忍者', '海盗', '机甲', 
+                      '打工人', '干饭人', '小丑', '大佬', '萌新', '菜狗', '卷王', '肝帝', '欧皇', '非酋', '课代表', '显眼包', '搭子',
+                      'Code', 'Byte', 'Data', 'Hacker', 'Geek', 'Bug', 'Algorithm', 'Protocol'];
+    
+    // 网络后缀（中英数字混合）
+    const suffixes = ['', '123', '456', '007', '2024', 'X', 'Z', 'Pro', 'Max', 'Plus', '_official', '酱', '君', '桑', '菌', '子', '儿', '啊', '呢', '~', '!', '!!', '!!!', '版', '形态'];
+    
+    // 特殊符号
+    const symbols = ['', '☆', '★', '�', '�', '�', '�', '丨', '丶', '灬', '卩', '丿'];
+  
+    const prefix = prefixes[rand(0, prefixes.length - 1)];
+    const symbol = symbols[rand(0, symbols.length - 1)];
+    const suffix = suffixes[rand(0, suffixes.length - 1)];
+    
+    // 随机选择生成模式
+    const pattern = rand(1, 8);
+    
+    switch(pattern) {
+      case 1: // 前缀 + 中文形容词 + 核心词 + 后缀
+        const adj1 = cnAdjectives[rand(0, cnAdjectives.length - 1)];
+        const core1 = coreWords[rand(0, coreWords.length - 1)];
+        return `${prefix}${adj1}${core1}${suffix}`;
+        
+      case 2: // 符号 + 核心词 + 数字后缀
+        const core2 = coreWords[rand(0, coreWords.length - 1)];
+        return `${symbol}${core2}${rand(1, 999)}`;
+        
+      case 3: // 中文形容词 + 的 + 核心词
+        const adj3 = cnAdjectives[rand(0, cnAdjectives.length - 1)];
+        const core3 = coreWords[rand(0, coreWords.length - 1)];
+        return `${adj3}的${core3}`;
+        
+      case 4: // 英文前缀 + 中文核心词 + 英文后缀
+        const enPrefixes = ['Mr_', 'Ms_', 'Dr_', 'AI_', 'Cyber_', 'Digital_', 'Virtual_'];
+        const enPrefix = enPrefixes[rand(0, enPrefixes.length - 1)];
+        const core4 = coreWords[rand(0, coreWords.length - 1)];
+        const enSuffixes = ['_Pro', '_Max', '_Plus', '_X', '_Z'];
+        const enSuffix = enSuffixes[rand(0, enSuffixes.length - 1)];
+        return `${enPrefix}${core4}${enSuffix}`;
+        
+      case 5: // 动作前缀 + 核心词
+        const actions = ['狂炫', '暴风', '沉浸式', '在线', '离线'];
+        const action = actions[rand(0, actions.length - 1)];
+        const core5 = coreWords[rand(0, coreWords.length - 1)];
+        return `${action}${core5}`;
+        
+      case 6: // 纯英文科技风
+        const enWords = ['Dark', 'Shadow', 'Light', 'Fire', 'Ice', 'Storm', 'Cyber', 'Neo', 'Tech', 'Data', 'Code'];
+        return `${enWords[rand(0, enWords.length - 1)]}${rand(1, 999)}`;
+        
+      case 7: // 中文流行语缩写 + 核心词
+        const abbr = ['AKA', 'DIY', 'CPU', 'KFC', 'PDF', 'ATM', 'VIP', 'YYDS'][rand(0, 7)];
+        const core7 = coreWords[rand(0, coreWords.length - 1)];
+        return `${abbr}${core7}`;
+        
+      case 8: // 符号 + 中文形容词 + 核心词 + 颜文字后缀
+        const adj8 = cnAdjectives[rand(0, cnAdjectives.length - 1)];
+        const core8 = coreWords[rand(0, coreWords.length - 1)];
+        const kaomoji = ['~(￣▽￣)~', '(・∀・)', '(￣ω￣)', '(≧∇≦)ﾉ', '_(:3」∠)_', '(╯°□°)╯', '(*/ω＼*)'][rand(0, 6)];
+        return `${symbol}${adj8}${core8}${kaomoji}`;
+        
+      default:
+        const adjDefault = cnAdjectives[rand(0, cnAdjectives.length - 1)];
+        const coreDefault = coreWords[rand(0, coreWords.length - 1)];
+        return `${prefix}${adjDefault}${coreDefault}${suffix}`;
     }
+  }
+  
+  // 辅助随机数函数
+  rand(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
   // 自动添加新居民（定期调用）
@@ -297,6 +375,12 @@ export class GameEngine {
     this.state.logs = [];
     this.state.isPlaying = false;
     this.state.timeSpeed = 1;
+    
+    // 新建游戏时清除调试模式标志
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.removeItem('debug_mode');
+      window.dispatchEvent(new CustomEvent('debug-mode-disabled'));
+    }
     
     // 如果没有自定义城镇名称，使用默认值
     if (!this.state.townName || this.state.townName.trim() === '') {
@@ -3105,12 +3189,104 @@ export class GameEngine {
       
       this.log('🗑 游戏已重置到初始状态', 'info');
       
+      // 重置时清除调试模式标志
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        localStorage.removeItem('debug_mode');
+        window.dispatchEvent(new CustomEvent('debug-mode-disabled'));
+      }
+      
       // 重置后不自动启动，等待开始页面
       // 触发自定义事件，通知 UI 显示开始页面
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('game-reset'));
       }
     }
+  }
+
+  // 存档重roll：重新随机生成所有居民的特质（personality和traits）
+  rollCurrentSave() {
+    if (this.state.chars.length === 0) {
+      this.log('❌ 没有居民可以重roll！', 'error');
+      return;
+    }
+    
+    // 保存游戏运行状态，确保roll后游戏继续运行
+    const wasPlaying = this.state.isPlaying;
+    
+    let rolledCount = 0;
+    
+    // 遍历所有居民，重新随机生成特质
+    this.state.chars.forEach(char => {
+      // 重新随机生成性格
+      char.personality = choose(PERSONALITIES);
+      
+      // 重新随机生成特质
+      char.traits = [];
+      const existingTraitIds: string[] = [];
+      
+      // 第一步：较大概率获得第一个特质（70%）
+      if (Math.random() < 0.7) {
+        const availableTraits = TRAITS.filter(t => 
+          !existingTraitIds.includes(t.id) && !hasTraitConflict(existingTraitIds, t.id)
+        );
+        if (availableTraits.length > 0) {
+          const selectedTrait = choose(availableTraits);
+          char.traits.push(selectedTrait);
+          existingTraitIds.push(selectedTrait.id);
+        }
+      }
+      
+      // 第二步：大概率再获得一个特质（80%）
+      if (Math.random() < 0.8 && existingTraitIds.length > 0) {
+        const availableTraits = TRAITS.filter(t => 
+          !existingTraitIds.includes(t.id) && !hasTraitConflict(existingTraitIds, t.id)
+        );
+        if (availableTraits.length > 0) {
+          const selectedTrait = choose(availableTraits);
+          char.traits.push(selectedTrait);
+          existingTraitIds.push(selectedTrait.id);
+        }
+      }
+      
+      // 第三步：小概率额外获得一个特质（20%）
+      if (Math.random() < 0.2 && existingTraitIds.length > 0) {
+        const availableTraits = TRAITS.filter(t => 
+          !existingTraitIds.includes(t.id) && !hasTraitConflict(existingTraitIds, t.id)
+        );
+        if (availableTraits.length > 0) {
+          const selectedTrait = choose(availableTraits);
+          char.traits.push(selectedTrait);
+          existingTraitIds.push(selectedTrait.id);
+        }
+      }
+      
+      // 第四步：极小概率额外获得一个特质（5%）
+      if (Math.random() < 0.05 && existingTraitIds.length > 0) {
+        const availableTraits = TRAITS.filter(t => 
+          !existingTraitIds.includes(t.id) && !hasTraitConflict(existingTraitIds, t.id)
+        );
+        if (availableTraits.length > 0) {
+          const selectedTrait = choose(availableTraits);
+          char.traits.push(selectedTrait);
+          existingTraitIds.push(selectedTrait.id);
+        }
+      }
+      
+      rolledCount++;
+    });
+    
+    // 重置游戏时间到存档的默认起始时间（与initNewGame相同）
+    this.state.gameTime = 480; // minutes, start at 8:00
+    this.state.gameDay = 1; // 0-6, default Monday
+    this.state.totalDaysPassed = 0;
+    
+    // 恢复游戏运行状态，确保时间继续流动
+    this.state.isPlaying = wasPlaying;
+    
+    this.log(`🎲 已重新随机生成 ${rolledCount} 名居民的特质和性格！游戏时间已重置到第0天8:00。`, 'info');
+    
+    // 自动保存
+    this.autoSave();
   }
 
   // 性欲处理系统
@@ -4179,6 +4355,101 @@ export class GameEngine {
     const oldName = this.state.observerName;
     this.state.observerName = trimmedName;
     this.log(`[✏️更改] 旁观者名称已从 "${oldName || '未设置'}" 更改为 "${trimmedName}"`, 'event');
+    
+    // 自动保存
+    this.autoSave();
+  }
+
+  // 调试功能：快速跳天数
+  jumpDays(days: number) {
+    if (days <= 0) {
+      this.log('❌ 跳天数必须大于0！', 'error');
+      return;
+    }
+    
+    const wasPlaying = this.state.isPlaying;
+    this.stop(); // 暂停游戏以确保状态一致
+    
+    this.log(`⏰ 开始跳过 ${days} 天...`, 'system');
+    
+    // 记录开始时的天数
+    const startDay = this.state.totalDaysPassed;
+    const targetDay = startDay + days;
+    
+    // 逐天推进
+    while (this.state.totalDaysPassed < targetDay) {
+      // 记录前一天的建筑收入
+      this.state.buildings.forEach(building => {
+        if (building.isBuilt && building.lastRevenueDay < this.state.totalDaysPassed) {
+          const previousTotal = building.revenueHistory.reduce((a, b) => a + b, 0);
+          const dailyRevenue = building.totalRevenue - previousTotal;
+          if (dailyRevenue >= 0) {
+            building.revenueHistory.push(dailyRevenue);
+            if (building.revenueHistory.length > 30) {
+              building.revenueHistory.shift();
+            }
+          }
+          
+          if (building.dailyStaffIncome > 0) {
+            building.staffIncomeHistory.push(building.dailyStaffIncome);
+            if (building.staffIncomeHistory.length > 30) {
+              building.staffIncomeHistory.shift();
+            }
+            building.dailyStaffIncome = 0;
+          } else {
+            building.staffIncomeHistory.push(0);
+            if (building.staffIncomeHistory.length > 30) {
+              building.staffIncomeHistory.shift();
+            }
+          }
+          
+          building.lastRevenueDay = this.state.totalDaysPassed;
+        }
+      });
+      
+      // 推进到下一天
+      this.state.gameDay = (this.state.gameDay + 1) % 7;
+      this.state.totalDaysPassed++;
+      
+      // 触发每日事件
+      this.tryAddNewResident();
+      this.checkAgeAndDeath();
+      this.checkPopulationFlow();
+      
+      // 每小时事件（简化处理，每天执行24次）
+      for (let hour = 0; hour < 24; hour++) {
+        this.runElectionsAndHiring();
+        
+        // 可信度自然恢复
+        this.state.chars.forEach(c => {
+          if (c.credibility < 50) {
+            c.credibility = Math.min(50, c.credibility + 1);
+          }
+        });
+        
+        // 检查建筑自动升级
+        this.checkAutoUpgrade();
+        
+        // 检查怀孕进度
+        this.checkPregnancyProgress();
+        
+        // 检查抢劫事件
+        this.checkRobbery();
+        
+        // 检查零花钱
+        this.checkAllowance();
+      }
+    }
+    
+    // 保持时间在8:00
+    this.state.gameTime = 480;
+    
+    // 恢复游戏运行状态
+    if (wasPlaying) {
+      this.start();
+    }
+    
+    this.log(`✅ 已跳过 ${days} 天！当前游戏日：第 ${this.state.totalDaysPassed} 天`, 'system');
     
     // 自动保存
     this.autoSave();
