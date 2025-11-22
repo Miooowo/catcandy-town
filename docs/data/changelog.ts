@@ -11,6 +11,13 @@ export const GAME_VERSION = '1.0.1.1';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.1.2',
+    date: '2025/11/22 4:08',
+    changed: [
+      '修复了游戏重置功能，现在可以正确重置游戏状态'
+    ]
+  },
+  {
     version: '1.0.1.1',
     date: '2025/11/21 21:00',
     changed: [

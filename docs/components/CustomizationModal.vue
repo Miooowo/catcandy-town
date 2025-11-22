@@ -5,12 +5,10 @@ import { NAMES } from '../data/constants';
 
 const props = defineProps<{
   visible: boolean;
-  isInitialSetup?: boolean; // 是否为首次设置
 }>();
 
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'complete-setup'): void; // 完成初始设置
 }>();
 
 // 城镇名称
@@ -61,19 +59,6 @@ const save = () => {
   gameInstance.state.townName = trimmedTownName;
   gameInstance.state.customCharacterNames = trimmedNames;
   
-  // 如果是首次设置
-  if (props.isInitialSetup) {
-    // 初始化游戏
-    if (gameInstance.state.chars.length === 0) {
-      gameInstance.initNewGame();
-    }
-    // 自动保存
-    gameInstance.autoSave();
-    // 触发完成设置事件
-    emit('complete-setup');
-    return;
-  }
-  
   // 如果游戏已开始，需要重新初始化角色（但保留游戏进度）
   if (gameInstance.state.chars.length > 0) {
     const shouldRestart = confirm('修改居民名称需要重新开始游戏。是否继续？\n（当前游戏进度将被重置）');
@@ -82,7 +67,8 @@ const save = () => {
       gameInstance.state.townName = trimmedTownName;
       gameInstance.state.customCharacterNames = trimmedNames;
       gameInstance.resetData(true); // 传递true以保留自定义设置
-      gameInstance.log(`🏘️ 欢迎来到 **${trimmedTownName}**！`, 'system');
+      // 重置后会触发game-reset事件，GameLayout会监听并显示开始页面
+      return;
     } else {
       // 取消修改
       townName.value = gameInstance.state.townName;
@@ -124,8 +110,8 @@ watch(() => props.visible, (newVal) => {
   <div v-if="visible" class="modal-overlay" @click.self="close">
     <div class="customization-modal-content">
       <div class="customization-header">
-        <h3>{{ isInitialSetup ? '🎮 欢迎来到猫果镇物语' : '⚙️ 自定义设置' }}</h3>
-        <button v-if="!isInitialSetup" class="modal-close" @click="close">×</button>
+        <h3>⚙️ 自定义设置</h3>
+        <button class="modal-close" @click="close">×</button>
       </div>
       
       <div class="customization-content">
@@ -168,8 +154,7 @@ watch(() => props.visible, (newVal) => {
         <div class="info-section">
           <p class="info-text">💡 提示：</p>
           <ul class="info-list">
-            <li v-if="isInitialSetup">请为你的小镇和居民设置名称，完成后即可开始游戏</li>
-            <li v-else>修改居民名称后需要重新开始游戏才能生效</li>
+            <li>修改居民名称后需要重新开始游戏才能生效</li>
             <li>所有12个居民都必须有名称，且不能重复</li>
             <li>城镇名称最多20个字符</li>
           </ul>
@@ -177,10 +162,10 @@ watch(() => props.visible, (newVal) => {
       </div>
       
       <div class="customization-footer">
-        <button v-if="!isInitialSetup" @click="resetToDefault" class="btn-reset">🔄 重置为默认</button>
+        <button @click="resetToDefault" class="btn-reset">🔄 重置为默认</button>
         <div class="footer-buttons">
-          <button v-if="!isInitialSetup" @click="close" class="btn-cancel">取消</button>
-          <button @click="save" class="btn-save">{{ isInitialSetup ? '🎮 开始游戏' : '💾 保存' }}</button>
+          <button @click="close" class="btn-cancel">取消</button>
+          <button @click="save" class="btn-save">💾 保存</button>
         </div>
       </div>
     </div>

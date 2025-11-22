@@ -2521,12 +2521,24 @@ export class GameEngine {
       this.state.townName = savedTownName;
       this.state.customCharacterNames = savedCustomNames;
       
-      this.initNewGame();
+      // 清空所有游戏状态，让游戏回到开始页面
+      this.state.chars = [];
+      this.state.buildings = [];
+      this.state.townMoney = 0;
+      this.state.gameTime = 480;
+      this.state.gameDay = 1;
+      this.state.totalDaysPassed = 0;
+      this.state.logs = [];
+      this.state.isPlaying = false;
+      this.state.timeSpeed = 1;
+      
       this.log('🗑 游戏已重置到初始状态', 'info');
-      // 重置后自动启动游戏
-      setTimeout(() => {
-        this.start();
-      }, 100);
+      
+      // 重置后不自动启动，等待开始页面
+      // 触发自定义事件，通知 UI 显示开始页面
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('game-reset'));
+      }
     }
   }
 
