@@ -7,9 +7,22 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.4.1';
+export const GAME_VERSION = '1.5';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.5',
+    date: '2025/11/22 8:46',
+    added: [
+      '家庭大更新：孩子会随父母姓，姓氏通常是名字的第一个字开头',
+      '特质遗传：孩子会概率获得父母拥有的特质，获得1个到4个的概率为：70%，60%，10%，2%',
+      '亲属关系显示：可以在居民的档案信息里查看居民的亲属关系（父母、子女、兄弟姐妹）',
+      '族谱功能：在关系谱中添加族谱，点击族谱可以查看城镇内各个居民的家庭树'
+    ],
+    changed: [
+      '优化家庭系统：完善了家庭关系的展示和追踪'
+    ]
+  },
   {
     version: '1.4.1',
     date: '2025/11/22',

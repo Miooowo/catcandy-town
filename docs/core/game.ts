@@ -191,6 +191,25 @@ export class GameEngine {
   }
 
   // 生成随机名字
+  // 获取遗传特质数量（1个到4个的概率为：70%，60%，10%，2%）
+  getInheritedTraitCount(): number {
+    const roll = Math.random();
+    if (roll < 0.7) {
+      // 70%概率获得1个
+      return 1;
+    } else if (roll < 0.7 + 0.6) {
+      // 60%概率获得2个（在剩余的30%中）
+      return 2;
+    } else if (roll < 0.7 + 0.6 + 0.1) {
+      // 10%概率获得3个（在剩余的-30%中，实际是10%）
+      return 3;
+    } else if (roll < 0.7 + 0.6 + 0.1 + 0.02) {
+      // 2%概率获得4个
+      return 4;
+    }
+    return 0;
+  }
+
   generateRandomName(): string {
     const surnames = ['张', '李', '王', '刘', '陈', '杨', '赵', '黄', '周', '吴', '徐', '孙', '胡', '朱', '高', '林', '何', '郭', '马', '罗'];
     const givenNames = ['伟', '芳', '娜', '秀', '敏', '静', '丽', '强', '磊', '军', '洋', '勇', '艳', '杰', '娟', '涛', '明', '超', '兰', '霞', '平', '刚', '桂', '英'];
@@ -3603,7 +3622,40 @@ export class GameEngine {
     }
     
     // 创建新角色（孩子）
-    const childName = this.generateRandomName();
+    // 孩子会随父母姓，姓氏通常是名字的第一个字开头
+    const father = this.state.chars.find(c => c.name === fatherName);
+    const fatherSurname = father ? father.name.charAt(0) : null;
+    const motherSurname = char.name.charAt(0);
+    
+    // 优先使用父亲的姓氏，如果没有父亲或父亲名字只有一个字，使用母亲的姓氏
+    const surname = fatherSurname && father && father.name.length > 1 ? fatherSurname : motherSurname;
+    
+    // 生成名字（姓氏 + 随机名字）
+    const givenNames = ['伟', '芳', '娜', '秀', '敏', '静', '丽', '强', '磊', '军', '洋', '勇', '艳', '杰', '娟', '涛', '明', '超', '兰', '霞', '平', '刚', '桂', '英'];
+    let childName: string;
+    if (Math.random() < 0.5) {
+      // 单字名
+      childName = surname + givenNames[rand(0, givenNames.length - 1)];
+    } else {
+      // 双字名
+      childName = surname + givenNames[rand(0, givenNames.length - 1)] + givenNames[rand(0, givenNames.length - 1)];
+    }
+    
+    // 确保名字不重复
+    let attempts = 0;
+    while (this.state.chars.some(c => c.name === childName) && attempts < 100) {
+      if (Math.random() < 0.5) {
+        childName = surname + givenNames[rand(0, givenNames.length - 1)];
+      } else {
+        childName = surname + givenNames[rand(0, givenNames.length - 1)] + givenNames[rand(0, givenNames.length - 1)];
+      }
+      attempts++;
+    }
+    if (attempts >= 100) {
+      // 如果还是重复，添加数字后缀
+      childName = surname + givenNames[rand(0, givenNames.length - 1)] + rand(1, 999);
+    }
+    
     const child = new Character(childName);
     child.age = 1; // 刚出生为1岁
     child.maxAge = 100; // 默认最大寿命
@@ -3612,6 +3664,35 @@ export class GameEngine {
       father: fatherName
     };
     child.birthTime = this.getAbsoluteTime();
+    
+    // 特质遗传：孩子会概率获得父母拥有的特质
+    // 收集父母的所有特质
+    const parentTraits = new Set<string>();
+    if (father) {
+      father.traits.forEach(t => parentTraits.add(t.id));
+    }
+    char.traits.forEach(t => parentTraits.add(t.id));
+    
+    // 获得1个到4个的概率为：70%，60%，10%，2%
+    const traitCount = this.getInheritedTraitCount();
+    const parentTraitArray = Array.from(parentTraits);
+    
+    if (parentTraitArray.length > 0 && traitCount > 0) {
+      // 随机选择特质（不重复）
+      const selectedTraits: string[] = [];
+      const availableTraits = [...parentTraitArray];
+      
+      for (let i = 0; i < Math.min(traitCount, availableTraits.length); i++) {
+        const randomIndex = rand(0, availableTraits.length - 1);
+        const traitId = availableTraits[randomIndex];
+        const trait = TRAITS.find(t => t.id === traitId);
+        if (trait && !hasTraitConflict(child.traits.map(t => t.id), traitId)) {
+          child.traits.push(trait);
+          selectedTraits.push(traitId);
+        }
+        availableTraits.splice(randomIndex, 1);
+      }
+    }
     
     // 初始化关系
     this.state.chars.forEach(c => {
@@ -3622,7 +3703,6 @@ export class GameEngine {
     // 设置与父母的关系
     child.relationships[char.name] = { love: 50, status: 'family' };
     child.relationships[fatherName] = { love: 50, status: 'family' };
-    const father = this.state.chars.find(c => c.name === fatherName);
     if (father) {
       father.relationships[childName] = { love: 50, status: 'family' };
       father.children.push(childName);

@@ -19,6 +19,7 @@ const closeModal = () => {
 
 const showLoveMatrix = ref(false);
 const showNetwork = ref(false);
+const showFamilyTree = ref(false);
 
 const openLoveMatrix = () => {
   emit('open-love-matrix');
@@ -27,6 +28,111 @@ const openLoveMatrix = () => {
 const openNetwork = () => {
   emit('open-network');
 };
+
+// 构建家庭树
+const familyTrees = computed(() => {
+  const trees: Array<{
+    families: Array<{
+      parents: Character[];
+      children: Character[];
+    }>;
+  }> = [];
+  
+  const processed = new Set<string>();
+  
+  // 找到所有有父母或子女的角色
+  const allFamilyChars = gameInstance.state.chars.filter(c => 
+    (c.parents && (c.parents.mother || c.parents.father)) || 
+    (c.children && c.children.length > 0)
+  );
+  
+  allFamilyChars.forEach(char => {
+    if (processed.has(char.name)) return;
+    
+    // 找到这个角色的所有家庭成员
+    const familyMembers = new Set<string>();
+    const findFamily = (name: string) => {
+      if (familyMembers.has(name)) return;
+      familyMembers.add(name);
+      
+      const member = gameInstance.state.chars.find(c => c.name === name);
+      if (!member) return;
+      
+      // 添加父母
+      if (member.parents) {
+        if (member.parents.mother) findFamily(member.parents.mother);
+        if (member.parents.father) findFamily(member.parents.father);
+      }
+      
+      // 添加子女
+      if (member.children && member.children.length > 0) {
+        member.children.forEach(childName => findFamily(childName));
+      }
+      
+      // 添加兄弟姐妹
+      if (member.parents) {
+        gameInstance.state.chars.forEach(c => {
+          if (c.name !== name && c.parents) {
+            if ((c.parents.mother === member.parents.mother && c.parents.father === member.parents.father) ||
+                (c.parents.mother === member.parents.mother && c.parents.father === member.parents.father)) {
+              findFamily(c.name);
+            }
+          }
+        });
+      }
+    };
+    
+    findFamily(char.name);
+    
+    if (familyMembers.size > 0) {
+      // 构建家庭树结构
+      const families: Array<{ parents: Character[]; children: Character[] }> = [];
+      const familyChars = Array.from(familyMembers).map(name => 
+        gameInstance.state.chars.find(c => c.name === name)!
+      ).filter(c => c);
+      
+      // 找到所有父母对及其孩子
+      const parentPairMap = new Map<string, { parents: Character[]; children: Character[] }>();
+      
+      familyChars.forEach(c => {
+        if (c.parents) {
+          const mother = familyChars.find(ch => ch.name === c.parents!.mother);
+          const father = familyChars.find(ch => ch.name === c.parents!.father);
+          
+          if (mother || father) {
+            const pairKey = [c.parents.mother || '', c.parents.father || ''].sort().join('-');
+            
+            if (!parentPairMap.has(pairKey)) {
+              const parents: Character[] = [];
+              if (mother) parents.push(mother);
+              if (father) parents.push(father);
+              parentPairMap.set(pairKey, { parents, children: [] });
+            }
+            
+            const pair = parentPairMap.get(pairKey)!;
+            if (!pair.children.find(ch => ch.name === c.name)) {
+              pair.children.push(c);
+            }
+          }
+        }
+      });
+      
+      // 转换为数组
+      parentPairMap.forEach(pair => {
+        if (pair.parents.length > 0 || pair.children.length > 0) {
+          families.push(pair);
+        }
+      });
+      
+      if (families.length > 0) {
+        trees.push({ families });
+        familyMembers.forEach(name => processed.add(name));
+      }
+    }
+  });
+  
+  return trees;
+});
 
 // 获取所有关系数据（去重）
 const allRelationships = computed(() => {
@@ -243,6 +349,7 @@ const isExpanded = (type: string, charName: string): boolean => {
       <div class="tree-header">
         <h3 class="tree-title">👥 关系谱</h3>
         <div class="header-actions">
+          <button @click="showFamilyTree = !showFamilyTree" class="action-btn" :class="{ active: showFamilyTree }" title="查看族谱">🌳 族谱</button>
           <button @click="openLoveMatrix" class="action-btn" title="查看好感度矩阵">💕 好感度</button>
           <button @click="openNetwork" class="action-btn" title="查看关系网络图">🕸️ 网络图</button>
           <button class="modal-close" @click="closeModal">×</button>
@@ -250,6 +357,31 @@ const isExpanded = (type: string, charName: string): boolean => {
       </div>
       
       <div class="tree-content">
+        <!-- 族谱 -->
+        <div v-if="showFamilyTree" class="relationship-section">
+          <h4 class="section-title">🌳 族谱 - 家庭树</h4>
+          <div v-if="familyTrees.length > 0">
+            <div v-for="(tree, treeIndex) in familyTrees" :key="`tree-${treeIndex}`" class="family-tree-item" style="margin-bottom: 24px; padding: 16px; border: 1px solid #eee; border-radius: 8px;">
+              <div v-for="(family, familyIndex) in tree.families" :key="`family-${treeIndex}-${familyIndex}`" style="margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; margin-bottom: 8px; flex-wrap: wrap;">
+                  <div v-for="parent in family.parents" :key="parent.name" style="margin-right: 8px; margin-bottom: 4px; padding: 8px; background: #e3f2fd; border-radius: 4px;">
+                    <strong>{{ parent.name }}</strong> <span style="color: #666; font-size: 12px;">({{ parent.age }}岁)</span>
+                  </div>
+                  <span v-if="family.parents.length > 0 && family.children.length > 0" style="margin: 0 8px; color: #999;">→</span>
+                </div>
+                <div v-if="family.children.length > 0" style="margin-left: 24px; padding-left: 16px; border-left: 2px solid #ddd;">
+                  <div v-for="child in family.children" :key="child.name" style="margin-bottom: 4px; padding: 6px; background: #f5f5f5; border-radius: 4px;">
+                    <strong>{{ child.name }}</strong> <span style="color: #666; font-size: 12px;">({{ child.age }}岁)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="no-relationships">
+            <p>暂无家庭关系</p>
+          </div>
+        </div>
+
         <!-- 婚姻关系（按居民分组，可展开/收起） -->
         <div v-if="relationshipsByType.marriage.length > 0" class="relationship-section">
           <h4 class="section-title">💑 婚姻关系</h4>
@@ -608,12 +740,39 @@ const isExpanded = (type: string, charName: string): boolean => {
   background: #2563eb;
 }
 
+.action-btn.active {
+  background: #4caf50;
+  color: white;
+}
+
+.action-btn.active:hover {
+  background: #45a049;
+}
+
 :global(.dark-mode) .action-btn {
   background: #60a5fa;
 }
 
 :global(.dark-mode) .action-btn:hover {
   background: #3b82f6;
+}
+
+.action-btn.active {
+  background: #4caf50;
+  color: white;
+}
+
+.action-btn.active:hover {
+  background: #45a049;
+}
+
+:global(.dark-mode) .action-btn.active {
+  background: #4caf50;
+  color: white;
+}
+
+:global(.dark-mode) .action-btn.active:hover {
+  background: #45a049;
 }
 
 .modal-close {

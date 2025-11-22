@@ -79,6 +79,24 @@ const getChildAge = (childName: string) => {
   const age = Math.floor((gameInstance.state.gameTime - child.birthTime) / 1440);
   return age > 0 ? `${age}天` : '新生儿';
 };
+
+// 获取兄弟姐妹
+const getSiblings = (character: Character) => {
+  if (!character.parents) return [];
+  
+  const siblings: string[] = [];
+  gameInstance.state.chars.forEach(c => {
+    if (c.name === character.name) return; // 跳过自己
+    if (c.parents && 
+        ((c.parents.mother === character.parents.mother && c.parents.father === character.parents.father) ||
+         (c.parents.mother === character.parents.mother && !c.parents.father) ||
+         (c.parents.father === character.parents.father && !c.parents.mother))) {
+      siblings.push(c.name);
+    }
+  });
+  
+  return siblings;
+};
 </script>
 
 <template>
@@ -234,6 +252,38 @@ const getChildAge = (childName: string) => {
           <div v-if="character.parents" class="profile-row" style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px;">
             <span class="profile-label">父母：</span>
             <span class="profile-value">👨 {{ character.parents.father }} & 👩 {{ character.parents.mother }}</span>
+          </div>
+        </div>
+
+        <!-- 亲属关系 -->
+        <div class="profile-section">
+          <h4>👨‍👩‍👧‍👦 亲属关系</h4>
+          <div v-if="character.parents" class="profile-row">
+            <span class="profile-label">父亲：</span>
+            <span class="profile-value">👨 {{ character.parents.father }}</span>
+          </div>
+          <div v-if="character.parents" class="profile-row">
+            <span class="profile-label">母亲：</span>
+            <span class="profile-value">👩 {{ character.parents.mother }}</span>
+          </div>
+          <div v-if="character.children && character.children.length > 0" class="profile-row" style="margin-top: 10px;">
+            <span class="profile-label">子女（{{ character.children.length }}人）：</span>
+            <div style="margin-top: 6px;">
+              <span v-for="(childName, index) in character.children" :key="childName" class="profile-value" style="display: inline-block; margin-right: 8px;">
+                👶 {{ childName }}<span v-if="index < character.children.length - 1">、</span>
+              </span>
+            </div>
+          </div>
+          <div v-if="getSiblings(character).length > 0" class="profile-row" style="margin-top: 10px;">
+            <span class="profile-label">兄弟姐妹（{{ getSiblings(character).length }}人）：</span>
+            <div style="margin-top: 6px;">
+              <span v-for="(siblingName, index) in getSiblings(character)" :key="siblingName" class="profile-value" style="display: inline-block; margin-right: 8px;">
+                👫 {{ siblingName }}<span v-if="index < getSiblings(character).length - 1">、</span>
+              </span>
+            </div>
+          </div>
+          <div v-if="!character.parents && (!character.children || character.children.length === 0) && getSiblings(character).length === 0" class="profile-row">
+            <span class="profile-value" style="color: #999;">暂无亲属关系</span>
           </div>
         </div>
 
