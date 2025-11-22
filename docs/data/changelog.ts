@@ -7,9 +7,21 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.0.2';
+export const GAME_VERSION = '1.1';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.1',
+    date: '2025/11/22 4:33',
+    added: [
+      '多存档槽位系统：支持多个存档槽位，方便管理不同游戏进度',
+      '存档页面：在开始游戏前可以选择存档槽位',
+      '预设功能：支持通过群号快速加载预设的城镇和居民配置'
+    ],
+    changed: [
+      '优化存档系统：旧存档自动迁移到存档槽位1'
+    ]
+  },
   {
     version: '1.0.2',
     date: '2025/11/22 4:15',

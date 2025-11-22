@@ -38,6 +38,7 @@ export class GameEngine {
   private beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
   private lastNewCharDay: number = 0; // 上次添加新居民的游戏日
   private newCharInterval: number = 5; // 每5天添加一个新居民
+  private currentSlot: number = 1; // 当前存档槽位（1-5）
 
   constructor() {
     this.state = reactive({
@@ -96,25 +97,71 @@ export class GameEngine {
       return;
     }
     
-    const saveStr = localStorage.getItem('happyTownV2_Save');
-    if (saveStr) {
-      const loadResult = this.loadFromJSON(saveStr);
-      if (loadResult.success) {
-        this.checkAndAddNewChars();
-        this.log("📂 读取存档成功！欢迎回来。");
-      } else {
-        this.log(`⚠️ ${loadResult.message}，已开始新游戏。`, 'error');
-        this.initNewGame();
-      }
-    } else {
-      // 没有存档，不自动初始化，等待用户完成首次设置
-      // 只有在已有自定义设置时才初始化
-      if (this.state.townName && this.state.townName !== '猫果镇' || 
-          this.state.customCharacterNames.length === 12) {
-        this.initNewGame();
-      }
+    // 迁移旧存档到槽位1
+    this.migrateOldSave();
+    
+    // 不自动加载，等待用户选择存档槽位
+    // 只有在已有自定义设置时才初始化
+    if (this.state.townName && this.state.townName !== '猫果镇' || 
+        this.state.customCharacterNames.length === 12) {
+      this.initNewGame();
     }
-    // 不再需要 renderUIStatic() - Vue 会自动渲染
+  }
+
+  // 迁移旧存档到槽位1
+  migrateOldSave() {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return;
+    }
+    
+    const oldSaveKey = 'happyTownV2_Save';
+    const newSaveKey = 'happyTownV2_Save_Slot1';
+    
+    // 如果旧存档存在且槽位1没有存档，则迁移
+    const oldSave = localStorage.getItem(oldSaveKey);
+    const slot1Save = localStorage.getItem(newSaveKey);
+    
+    if (oldSave && !slot1Save) {
+      localStorage.setItem(newSaveKey, oldSave);
+      localStorage.removeItem(oldSaveKey);
+      console.log('已迁移旧存档到存档槽位1');
+    }
+  }
+
+  // 设置当前存档槽位
+  setCurrentSlot(slot: number) {
+    if (slot >= 1 && slot <= 5) {
+      this.currentSlot = slot;
+    }
+  }
+
+  // 获取当前存档槽位
+  getCurrentSlot(): number {
+    return this.currentSlot;
+  }
+
+  // 从指定槽位加载存档
+  loadFromSlot(slot: number): { success: boolean; message?: string } {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return { success: false, message: '浏览器环境不支持' };
+    }
+    
+    const saveKey = `happyTownV2_Save_Slot${slot}`;
+    const saveStr = localStorage.getItem(saveKey);
+    
+    if (!saveStr) {
+      return { success: false, message: '存档槽位为空' };
+    }
+    
+    this.currentSlot = slot;
+    const loadResult = this.loadFromJSON(saveStr);
+    
+    if (loadResult.success) {
+      this.checkAndAddNewChars();
+      this.log("📂 读取存档成功！欢迎回来。");
+    }
+    
+    return loadResult;
   }
 
   checkAndAddNewChars() {
@@ -702,7 +749,8 @@ export class GameEngine {
     try {
       this.lastSaveTime = Date.now();
       const saveData = this.toJSON();
-      localStorage.setItem('happyTownV2_Save', saveData);
+      const saveKey = `happyTownV2_Save_Slot${this.currentSlot}`;
+      localStorage.setItem(saveKey, saveData);
       // 静默保存，不显示日志（避免刷屏）
     } catch (e) {
       console.error('自动存档失败', e);
@@ -2423,7 +2471,8 @@ export class GameEngine {
       this.manualSave();
       
       // 获取存档数据
-      const saveStr = localStorage.getItem('happyTownV2_Save');
+      const saveKey = `happyTownV2_Save_Slot${this.currentSlot}`;
+      const saveStr = localStorage.getItem(saveKey);
       if (!saveStr) {
         this.log('❌ 没有找到存档数据！', 'error');
         return;
@@ -2514,7 +2563,9 @@ export class GameEngine {
       const savedTownName = preserveCustomization ? this.state.townName : '猫果镇';
       const savedCustomNames = preserveCustomization ? [...this.state.customCharacterNames] : [];
       
-      localStorage.removeItem('happyTownV2_Save');
+      // 删除当前槽位的存档
+      const saveKey = `happyTownV2_Save_Slot${this.currentSlot}`;
+      localStorage.removeItem(saveKey);
       this.stop();
       
       // 恢复自定义设置

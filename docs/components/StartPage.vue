@@ -52,6 +52,43 @@ const refreshTownName = () => {
   townName.value = townNames[Math.floor(Math.random() * townNames.length)];
 };
 
+// 预设配置
+const PRESETS: Record<string, { townName: string; characterNames: string[] }> = {
+  '592700690': {
+    townName: '猫の星空登陆舱',
+    characterNames: ['耄耋', '曼波', '哈基米', '果猫', '暖泪', '沐夏', 'sans', '时苏', '小睿', '斗罗1654e', '云绒', '抉']
+  },
+  '233906077': {
+    townName: '快乐小镇',
+    characterNames: ['Mio', '老吕', 'Ler', 'Dofa', 'Ter', '三三', '画画', '阿湫', '蓝楹花', '绯衣响', '九八', '大切']
+  }
+};
+
+// 加载预设
+const loadPreset = () => {
+  const groupId = prompt('请输入群号以加载预设：');
+  if (!groupId || !groupId.trim()) {
+    return;
+  }
+  
+  const preset = PRESETS[groupId.trim()];
+  if (!preset) {
+    alert('未找到该群号的预设！');
+    return;
+  }
+  
+  townName.value = preset.townName;
+  
+  // 确保有12个居民名称（如果预设只有13个，取前12个）
+  const names = preset.characterNames.slice(0, 12);
+  while (names.length < 12) {
+    names.push('');
+  }
+  characterNames.value = names;
+  
+  alert(`已加载预设：${preset.townName}`);
+};
+
 // 开始游戏
 const startGame = () => {
   // 验证城镇名称
@@ -183,6 +220,9 @@ onMounted(() => {
       </div>
       
       <div class="start-page-footer">
+        <button @click="loadPreset" class="btn-preset">
+          ⚡ 加载预设
+        </button>
         <button @click="startGame" class="btn-start">
           🎮 启程！
         </button>
@@ -499,10 +539,36 @@ onMounted(() => {
   text-align: center;
   padding-top: 20px;
   border-top: 2px solid #eee;
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 :global(.dark-mode) .start-page-footer {
   border-top-color: #444;
+}
+
+.btn-preset {
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+  color: white;
+  border: none;
+  padding: 15px 40px;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+}
+
+.btn-preset:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(243, 156, 18, 0.6);
+}
+
+.btn-preset:active {
+  transform: translateY(-1px);
 }
 
 .btn-start {
@@ -528,6 +594,11 @@ onMounted(() => {
 }
 
 @media (min-width: 768px) {
+  .btn-preset {
+    padding: 18px 50px;
+    font-size: 1.2rem;
+  }
+  
   .btn-start {
     padding: 18px 60px;
     font-size: 1.4rem;

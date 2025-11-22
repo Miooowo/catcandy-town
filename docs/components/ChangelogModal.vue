@@ -40,9 +40,9 @@ const formatDate = (dateStr: string) => {
   return dateStr;
 };
 
-// 按版本号倒序排列（最新的在前）
+// CHANGELOG数组已经是从新到旧排列（最新的在前），直接使用
 const sortedChangelog = computed(() => {
-  return [...CHANGELOG].reverse();
+  return CHANGELOG;
 });
 </script>
 

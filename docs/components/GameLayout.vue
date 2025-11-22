@@ -13,6 +13,7 @@ import RelationshipNetwork from './RelationshipNetwork.vue';
 import RelationshipLoveMatrix from './RelationshipLoveMatrix.vue';
 import ChangelogModal from './ChangelogModal.vue';
 import StartPage from './StartPage.vue';
+import SaveSlotPage from './SaveSlotPage.vue';
 import type { Building } from '../core/building';
 
 // 直接解构 state 以便在模板使用
@@ -57,6 +58,8 @@ const showLoveMatrix = ref(false);
 // 更新日志模态框状态
 const showChangelog = ref(false);
 
+// 存档页面状态
+const showSaveSlotPage = ref(false);
 // 开始页面状态
 const showStartPage = ref(false);
 
@@ -92,6 +95,29 @@ const closeChangelog = () => {
   showChangelog.value = false;
 };
 
+// 从存档页面选择槽位
+const handleSelectSlot = (slot: number) => {
+  const result = gameInstance.loadFromSlot(slot);
+  if (result.success) {
+    showSaveSlotPage.value = false;
+    // 自动开始游戏
+    if (!gameInstance.state.isPlaying && gameInstance.state.chars.length > 0) {
+      gameInstance.start();
+    }
+  } else {
+    alert(result.message || '加载存档失败');
+  }
+};
+
+// 从存档页面新建游戏
+const handleNewGame = (slot?: number) => {
+  if (slot) {
+    gameInstance.setCurrentSlot(slot);
+  }
+  showSaveSlotPage.value = false;
+  showStartPage.value = true;
+};
+
 // 从开始页面进入游戏
 const handleStartGame = () => {
   showStartPage.value = false;
@@ -122,7 +148,8 @@ watch(isDarkMode, (newVal) => {
 
 // 监听游戏重置事件
 const handleGameReset = () => {
-  showStartPage.value = true;
+  showSaveSlotPage.value = true;
+  showStartPage.value = false;
 };
 
 // 从 localStorage 读取用户偏好
@@ -141,17 +168,21 @@ onMounted(() => {
   // 应用主题
   updateTheme();
   
-  // 检查是否有存档
-  const hasSave = localStorage.getItem('happyTownV2_Save');
-  
-  // 如果没有存档，显示开始页面
-  if (!hasSave && gameInstance.state.chars.length === 0) {
-    showStartPage.value = true;
-  } else {
-    // 有存档，正常启动游戏
-    if (!state.isPlaying && gameInstance.state.chars.length > 0) {
-      gameInstance.start();
+  // 检查是否有任何存档槽位
+  let hasAnySave = false;
+  for (let i = 1; i <= 5; i++) {
+    const saveKey = `happyTownV2_Save_Slot${i}`;
+    if (localStorage.getItem(saveKey)) {
+      hasAnySave = true;
+      break;
     }
+  }
+  
+  // 如果有存档或已有角色，显示存档页面；否则显示开始页面
+  if (hasAnySave || gameInstance.state.chars.length > 0) {
+    showSaveSlotPage.value = true;
+  } else {
+    showStartPage.value = true;
   }
   
   // 监听游戏重置事件
@@ -181,9 +212,16 @@ provide('toggleDarkMode', toggleDarkMode);
 </script>
 
 <template>
+  <!-- 存档页面 -->
+  <SaveSlotPage 
+    v-if="showSaveSlotPage"
+    @select-slot="handleSelectSlot"
+    @new-game="handleNewGame"
+  />
+  
   <!-- 开始页面 -->
   <StartPage 
-    v-if="showStartPage"
+    v-else-if="showStartPage"
     @start-game="handleStartGame"
   />
   
