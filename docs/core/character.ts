@@ -69,6 +69,9 @@ export class Character {
   resignationCooldown?: number; // 辞职冷静期结束时间（绝对时间），5天内不能工作
   lastResignedBuilding?: string; // 上次辞职的建筑ID
   lastResignedTime?: number; // 上次辞职的时间（绝对时间），用于计算一个月冷却期
+  currentTown?: string; // 当前所在城镇ID（多人模式）
+  homeTown?: string; // 所属城镇ID（多人模式）
+  travelCooldown?: number; // 旅行冷却时间（绝对时间）
   
   // 选举相关的临时属性（不持久化）
   bribedBy?: string; // 被谁收买

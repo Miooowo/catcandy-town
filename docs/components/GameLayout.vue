@@ -14,6 +14,7 @@ import RelationshipLoveMatrix from './RelationshipLoveMatrix.vue';
 import ChangelogModal from './ChangelogModal.vue';
 import StartPage from './StartPage.vue';
 import SaveSlotPage from './SaveSlotPage.vue';
+import MultiplayerModal from './MultiplayerModal.vue';
 import type { Building } from '../core/building';
 
 // 直接解构 state 以便在模板使用
@@ -58,6 +59,9 @@ const showLoveMatrix = ref(false);
 // 更新日志模态框状态
 const showChangelog = ref(false);
 
+// 多人模式模态框状态
+const showMultiplayer = ref(false);
+
 // 存档页面状态
 const showSaveSlotPage = ref(false);
 // 开始页面状态
@@ -93,6 +97,14 @@ const openChangelog = () => {
 
 const closeChangelog = () => {
   showChangelog.value = false;
+};
+
+const openMultiplayer = () => {
+  showMultiplayer.value = true;
+};
+
+const closeMultiplayer = () => {
+  showMultiplayer.value = false;
 };
 
 // 从存档页面选择槽位
@@ -231,6 +243,7 @@ provide('toggleDarkMode', toggleDarkMode);
       @toggle-dark="toggleDarkMode" 
       @show-relationship-tree="openRelationshipTree"
       @show-changelog="openChangelog"
+      @show-multiplayer="openMultiplayer"
     />
 
     <div class="game-content">
@@ -293,6 +306,11 @@ provide('toggleDarkMode', toggleDarkMode);
     <ChangelogModal 
       :visible="showChangelog"
       @close="closeChangelog"
+    />
+    
+    <MultiplayerModal 
+      :visible="showMultiplayer"
+      @close="closeMultiplayer"
     />
   </div>
 </template>

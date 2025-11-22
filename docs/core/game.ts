@@ -39,6 +39,8 @@ export class GameEngine {
   private lastNewCharDay: number = 0; // 上次添加新居民的游戏日
   private newCharInterval: number = 5; // 每5天添加一个新居民
   private currentSlot: number = 1; // 当前存档槽位（1-5）
+  private isMultiplayerMode: boolean = false; // 是否多人模式
+  private currentTownId: string | null = null; // 当前城镇ID（多人模式）
 
   constructor() {
     this.state = reactive({
@@ -275,6 +277,11 @@ export class GameEngine {
       characterNames.forEach(target => {
         if (target !== n) c.relationships[target] = { love: 0, status: 'stranger' };
       });
+      // 多人模式：设置所属城镇
+      if (this.isMultiplayerMode && this.currentTownId) {
+        c.homeTown = this.currentTownId;
+        c.currentTown = this.currentTownId;
+      }
       return c;
     });
 
@@ -1131,6 +1138,27 @@ export class GameEngine {
       b.isBuilt && 
       b.isOpen(hour, this.state.gameDay)
     );
+    
+    // 多人模式：检查是否需要跨城镇消费
+    if (this.isMultiplayerMode && availableVenues.length === 0) {
+      // 如果本地没有可用建筑，尝试跨城镇消费
+      if (this.tryCrossTownConsume(p)) {
+        return; // 如果成功跨城镇消费，不再执行其他逻辑
+      }
+      // 如果跨城镇消费失败，继续执行其他逻辑（例如休息）
+    }
+    
+    // 多人模式：特定需求时尝试跨城镇（例如需要酒店但没有）
+    if (this.isMultiplayerMode && p.hasTrait('sleepy') && Math.random() < 0.3) {
+      const localHotel = this.state.buildings.find(b => b.id === 'hotel' && b.isBuilt);
+      if (!localHotel) {
+        // 本地没有酒店，尝试去其他城镇
+        if (this.tryCrossTownConsume(p, 'hotel')) {
+          return; // 如果成功跨城镇消费，不再执行其他逻辑
+        }
+      }
+    }
+    
     let venue: any;
     if (availableVenues.length > 0) {
       const selectedBuilding = choose(availableVenues);
@@ -3027,6 +3055,120 @@ export class GameEngine {
     }
   }
 
+  // 启用多人模式
+  enableMultiplayerMode(townId: string) {
+    this.isMultiplayerMode = true;
+    this.currentTownId = townId;
+    
+    // 设置所有角色的所属城镇
+    this.state.chars.forEach(char => {
+      if (!char.homeTown) {
+        char.homeTown = townId;
+        char.currentTown = townId;
+      }
+    });
+  }
+
+  // 禁用多人模式
+  disableMultiplayerMode() {
+    this.isMultiplayerMode = false;
+    this.currentTownId = null;
+  }
+
+  // 尝试跨城镇消费（异步执行，但立即返回是否尝试）
+  tryCrossTownConsume(p: Character, buildingType?: string): boolean {
+    if (!this.isMultiplayerMode || typeof window === 'undefined') {
+      return false;
+    }
+
+    // 检查旅行冷却
+    const now = this.getAbsoluteTime();
+    if (p.travelCooldown && now < p.travelCooldown) {
+      return false; // 还在冷却期
+    }
+
+    // 30%概率尝试跨城镇消费
+    if (Math.random() >= 0.3) {
+      return false;
+    }
+
+    // 异步执行跨城镇消费
+    import('./network').then(({ networkManager }) => {
+      type TownInfo = import('./network').TownInfo;
+      const towns = networkManager.getTowns();
+      if (towns.length === 0) {
+        return;
+      }
+
+      // 过滤掉自己的城镇
+      const otherTowns = towns.filter(t => t.townId !== this.currentTownId);
+      if (otherTowns.length === 0) {
+        return;
+      }
+
+      // 如果指定了建筑类型，查找有该建筑的城镇
+      let targetTown: TownInfo | null = null;
+      if (buildingType) {
+        targetTown = otherTowns.find(t => 
+          t.buildings.some(b => b.id === buildingType)
+        ) || null;
+      }
+
+      // 如果没有找到特定建筑，随机选择一个城镇
+      if (!targetTown && otherTowns.length > 0) {
+        targetTown = choose(otherTowns);
+      }
+
+      if (!targetTown) {
+        return;
+      }
+
+      // 选择要消费的建筑
+      let targetBuilding: { id: string; name: string } | null = null;
+      if (buildingType) {
+        targetBuilding = targetTown.buildings.find(b => b.id === buildingType) || null;
+      } else if (targetTown.buildings.length > 0) {
+        targetBuilding = choose(targetTown.buildings);
+      }
+
+      if (targetBuilding) {
+        // 模拟消费金额（根据建筑类型）
+        let amount = 10;
+        if (targetBuilding.id === 'hotel') {
+          amount = rand(20, 50); // 酒店消费更高
+        } else if (targetBuilding.id === 'bar') {
+          amount = rand(5, 15);
+        }
+
+        // 检查角色是否有足够的钱
+        if (p.money >= amount) {
+          p.money -= amount;
+          p.currentTown = targetTown.townId;
+          p.currentAction = `在 ${targetTown.townName} 的 ${targetBuilding.name}`;
+          
+          // 设置旅行冷却（2-4小时）
+          const cooldown = rand(120, 240);
+          p.travelCooldown = now + cooldown;
+
+          // 发送跨城镇消费请求
+          networkManager.crossTownConsume(
+            p.name,
+            targetTown.townId,
+            targetBuilding.id,
+            amount
+          );
+
+          this.log(`[🚶跨镇] **${p.name}** 前往 **${targetTown.townName}** 的 **${targetBuilding.name}** 消费了 💰${amount}`, 'event');
+        }
+      }
+    }).catch(err => {
+      console.error('跨城镇消费失败:', err);
+    });
+
+    // 立即返回true表示已尝试（实际结果异步处理）
+    return true;
+  }
+
   // 创建新角色
   createNewCharacter() {
     // 检查是否在浏览器环境中
@@ -3055,6 +3197,12 @@ export class GameEngine {
       newChar.relationships[c.name] = { love: 0, status: 'stranger' };
       c.relationships[trimmedName] = { love: 0, status: 'stranger' };
     });
+    
+    // 多人模式：设置所属城镇
+    if (this.isMultiplayerMode && this.currentTownId) {
+      newChar.homeTown = this.currentTownId;
+      newChar.currentTown = this.currentTownId;
+    }
     
     // 添加到角色列表
     this.state.chars.push(newChar);

@@ -7,9 +7,24 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.1';
+export const GAME_VERSION = '1.2';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.2',
+    date: '2025/11/22',
+    added: [
+      '多人联机模式：支持多个玩家同时游戏，每个玩家拥有自己的城镇',
+      '跨城镇交互：居民可以前往其他城镇消费（如酒店、酒吧等）',
+      '跨城镇收入：其他城镇的居民在你的城镇消费会带来收入',
+      '城镇列表：可以查看所有在线城镇及其建筑信息',
+      '角色旅行状态：角色卡片显示当前所在城镇（多人模式）'
+    ],
+    changed: [
+      '优化角色行为：喜欢睡觉的居民会优先前往有酒店的城镇',
+      '优化多人体验：角色卡片显示跨城镇旅行状态'
+    ]
+  },
   {
     version: '1.1',
     date: '2025/11/22 4:33',

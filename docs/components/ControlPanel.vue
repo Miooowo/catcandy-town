@@ -57,6 +57,7 @@ const handleCreateCharacter = () => {
 const emit = defineEmits<{
   (e: 'show-relationship-tree'): void;
   (e: 'show-changelog'): void;
+  (e: 'show-multiplayer'): void;
 }>();
 
 const handleShowRelationshipTree = () => {
@@ -65,6 +66,10 @@ const handleShowRelationshipTree = () => {
 
 const handleShowChangelog = () => {
   emit('show-changelog');
+};
+
+const handleShowMultiplayer = () => {
+  emit('show-multiplayer');
 };
 
 const build = (id: string) => {
@@ -140,6 +145,7 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
         <button @click="handleCreateCharacter" class="btn-add-char" title="添加新角色">➕ 添加角色</button>
         <button @click="handleShowRelationshipTree" class="btn-relationship" title="查看关系谱">👥 关系谱</button>
         <button @click="handleShowChangelog" class="btn-changelog" title="查看更新日志">📋 更新日志</button>
+        <button @click="handleShowMultiplayer" class="btn-multiplayer" title="多人联机">🌐 多人模式</button>
         <button @click="handleReset" class="btn-reset" title="重置游戏到初始状态">🗑 重置</button>
         <input 
           ref="importFileInput"
@@ -503,6 +509,16 @@ button:active {
 
 .btn-changelog:hover {
   background: #5568d3 !important;
+}
+
+.btn-multiplayer {
+  background: #9b59b6 !important;
+  color: white !important;
+  border-color: #8e44ad !important;
+}
+
+.btn-multiplayer:hover {
+  background: #8e44ad !important;
 }
 
 </style>

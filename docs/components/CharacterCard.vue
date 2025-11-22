@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { Character } from '../core/character';
 import { gameInstance } from '../core/game';
 
@@ -38,6 +38,63 @@ const jobInfo = computed(() => {
 const handleClick = () => {
   emit('click');
 };
+
+// 城镇名称缓存
+const townNamesCache = ref<Record<string, string>>({});
+const currentTownName = ref<string>('');
+
+// 获取城镇名称（多人模式）
+const getTownName = (townId: string): string => {
+  if (townNamesCache.value[townId]) {
+    return townNamesCache.value[townId];
+  }
+  
+  // 如果是当前城镇，使用游戏状态中的城镇名称
+  if (townId && typeof window !== 'undefined') {
+    import('../core/network').then(({ networkManager }) => {
+      const currentTownId = networkManager.getCurrentTownId();
+      if (townId === currentTownId) {
+        townNamesCache.value[townId] = gameInstance.state.townName;
+        currentTownName.value = gameInstance.state.townName;
+        return;
+      }
+      
+      // 从网络管理器获取其他城镇名称
+      const towns = networkManager.getTowns();
+      const town = towns.find(t => t.townId === townId);
+      if (town) {
+        townNamesCache.value[townId] = town.townName;
+      }
+    }).catch(() => {});
+  }
+  
+  return townNamesCache.value[townId] || townId;
+};
+
+// 监听角色当前城镇变化
+watch(() => props.char.currentTown, (newTownId) => {
+  if (newTownId) {
+    getTownName(newTownId);
+  }
+}, { immediate: true });
+
+let townNameUpdateInterval: number | null = null;
+
+onMounted(() => {
+  // 定期更新城镇名称缓存
+  if (typeof window !== 'undefined' && props.char.currentTown) {
+    townNameUpdateInterval = window.setInterval(() => {
+      getTownName(props.char.currentTown!);
+    }, 5000);
+  }
+});
+
+onUnmounted(() => {
+  if (townNameUpdateInterval) {
+    clearInterval(townNameUpdateInterval);
+    townNameUpdateInterval = null;
+  }
+});
 </script>
 
 <template>
@@ -81,6 +138,9 @@ const handleClick = () => {
     </div>
 
     <div class="char-action">{{ char.currentAction }}</div>
+    <div v-if="char.currentTown && char.homeTown && char.currentTown !== char.homeTown" class="travel-info">
+      🚶 在 {{ getTownName(char.currentTown) }} 旅行
+    </div>
   </div>
 </template>
 
