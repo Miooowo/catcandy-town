@@ -7,9 +7,18 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.0.1.1';
+export const GAME_VERSION = '1.0.2';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.0.2',
+    date: '2025/11/22 4:15',
+    changed: [
+      '优化开始界面：加深城镇名称和居民名称颜色，提升可读性',
+      '优化时间速度调节：加深输入框内数字颜色',
+      '移除游戏内自定义按钮（可在开始界面设置）'
+    ]
+  },
   {
     version: '1.0.1.2',
     date: '2025/11/22 4:08',

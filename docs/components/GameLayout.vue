@@ -12,7 +12,6 @@ import RelationshipTree from './RelationshipTree.vue';
 import RelationshipNetwork from './RelationshipNetwork.vue';
 import RelationshipLoveMatrix from './RelationshipLoveMatrix.vue';
 import ChangelogModal from './ChangelogModal.vue';
-import CustomizationModal from './CustomizationModal.vue';
 import StartPage from './StartPage.vue';
 import type { Building } from '../core/building';
 
@@ -58,9 +57,6 @@ const showLoveMatrix = ref(false);
 // 更新日志模态框状态
 const showChangelog = ref(false);
 
-// 自定义界面模态框状态
-const showCustomization = ref(false);
-
 // 开始页面状态
 const showStartPage = ref(false);
 
@@ -94,14 +90,6 @@ const openChangelog = () => {
 
 const closeChangelog = () => {
   showChangelog.value = false;
-};
-
-const openCustomization = () => {
-  showCustomization.value = true;
-};
-
-const closeCustomization = () => {
-  showCustomization.value = false;
 };
 
 // 从开始页面进入游戏
@@ -205,7 +193,6 @@ provide('toggleDarkMode', toggleDarkMode);
       @toggle-dark="toggleDarkMode" 
       @show-relationship-tree="openRelationshipTree"
       @show-changelog="openChangelog"
-      @show-customization="openCustomization"
     />
 
     <div class="game-content">
@@ -268,11 +255,6 @@ provide('toggleDarkMode', toggleDarkMode);
     <ChangelogModal 
       :visible="showChangelog"
       @close="closeChangelog"
-    />
-    
-    <CustomizationModal 
-      :visible="showCustomization"
-      @close="closeCustomization"
     />
   </div>
 </template>

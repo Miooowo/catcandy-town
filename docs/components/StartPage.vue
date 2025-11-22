@@ -352,6 +352,8 @@ onMounted(() => {
   font-size: 1rem;
   transition: border-color 0.2s ease;
   box-sizing: border-box;
+  color: #000;
+  font-weight: 600;
 }
 
 .town-name-input:focus {
@@ -362,7 +364,8 @@ onMounted(() => {
 :global(.dark-mode) .town-name-input {
   background: #1a1a1a;
   border-color: #555;
-  color: #e5e5e5;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 :global(.dark-mode) .town-name-input:focus {
@@ -411,6 +414,8 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 0.9rem;
   transition: border-color 0.2s ease;
+  color: #000;
+  font-weight: 600;
 }
 
 .character-name-input:focus {
@@ -421,7 +426,8 @@ onMounted(() => {
 :global(.dark-mode) .character-name-input {
   background: #1a1a1a;
   border-color: #555;
-  color: #e5e5e5;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 :global(.dark-mode) .character-name-input:focus {
