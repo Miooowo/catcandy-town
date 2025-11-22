@@ -43,19 +43,22 @@ const handleClick = () => {
 const townNamesCache = ref<Record<string, string>>({});
 const currentTownName = ref<string>('');
 
-// 获取城镇名称（多人模式）
+// 获取城镇名称（多人模式，格式：旁观者名 的 城镇名）
 const getTownName = (townId: string): string => {
   if (townNamesCache.value[townId]) {
     return townNamesCache.value[townId];
   }
   
-  // 如果是当前城镇，使用游戏状态中的城镇名称
+  // 如果是当前城镇，使用游戏状态中的城镇名称和旁观者名称
   if (townId && typeof window !== 'undefined') {
     import('../core/network').then(({ networkManager }) => {
       const currentTownId = networkManager.getCurrentTownId();
       if (townId === currentTownId) {
-        townNamesCache.value[townId] = gameInstance.state.townName;
-        currentTownName.value = gameInstance.state.townName;
+        const displayName = gameInstance.state.observerName 
+          ? `${gameInstance.state.observerName} 的 ${gameInstance.state.townName}`
+          : gameInstance.state.townName;
+        townNamesCache.value[townId] = displayName;
+        currentTownName.value = displayName;
         return;
       }
       
@@ -63,7 +66,10 @@ const getTownName = (townId: string): string => {
       const towns = networkManager.getTowns();
       const town = towns.find(t => t.townId === townId);
       if (town) {
-        townNamesCache.value[townId] = town.townName;
+        const displayName = town.observerName 
+          ? `${town.observerName} 的 ${town.townName}`
+          : town.townName;
+        townNamesCache.value[townId] = displayName;
       }
     }).catch(() => {});
   }

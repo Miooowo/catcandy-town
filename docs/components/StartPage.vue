@@ -10,6 +10,9 @@ const emit = defineEmits<{
 // 城镇名称
 const townName = ref('猫果镇');
 
+// 旁观者名称
+const observerName = ref('');
+
 // 居民名称列表（12个）
 const characterNames = ref<string[]>([...NAMES]);
 
@@ -115,6 +118,7 @@ const startGame = () => {
   // 保存到游戏状态
   gameInstance.state.townName = trimmedTownName;
   gameInstance.state.customCharacterNames = trimmedNames;
+  gameInstance.state.observerName = observerName.value.trim() || '';
   
   // 初始化游戏
   if (gameInstance.state.chars.length === 0) {
@@ -137,6 +141,10 @@ onMounted(() => {
   
   if (gameInstance.state.customCharacterNames.length === 12) {
     characterNames.value = [...gameInstance.state.customCharacterNames];
+  }
+  
+  if (gameInstance.state.observerName) {
+    observerName.value = gameInstance.state.observerName;
   } else {
     // 随机生成所有名称
     refreshAllNames();
@@ -169,6 +177,23 @@ onMounted(() => {
               class="town-name-input"
               maxlength="20"
             />
+          </div>
+        </div>
+        
+        <!-- 旁观者名称设置 -->
+        <div class="setting-section">
+          <div class="section-header">
+            <h3>👤 旁观者名称（可选）</h3>
+          </div>
+          <div class="input-group">
+            <input 
+              type="text" 
+              v-model="observerName" 
+              placeholder="请输入旁观者名称（多人模式显示用）"
+              class="town-name-input"
+              maxlength="20"
+            />
+            <small class="input-hint">💡 在多人模式下，其他玩家会看到"你的名称 的 城镇名称"</small>
           </div>
         </div>
         

@@ -17,6 +17,7 @@ export const MSG_TYPES = {
 export interface TownInfo {
   townId: string;
   townName: string;
+  observerName?: string; // 旁观者名称
   playerId: string;
   characterCount: number;
   buildings: Array<{ id: string; name: string }>;
@@ -76,15 +77,17 @@ export class NetworkManager {
       if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
         const savedTownId = localStorage.getItem('multiplayer_townId');
         if (savedTownId && gameInstance.state.isMultiplayerMode) {
-          // 延迟一下，确保socket完全连接
-          setTimeout(() => {
-            const gameState = gameInstance.toJSON();
-            this.socket?.emit(MSG_TYPES.CREATE_TOWN, {
-              townName: gameInstance.state.townName,
-              playerId: this.playerId,
-              gameState: JSON.parse(gameState)
-            });
-          }, 500);
+      // 延迟一下，确保socket完全连接
+      setTimeout(() => {
+        const gameState = gameInstance.toJSON();
+        const gameStateObj = JSON.parse(gameState);
+        this.socket?.emit(MSG_TYPES.CREATE_TOWN, {
+          townName: gameInstance.state.townName,
+          observerName: gameInstance.state.observerName || '',
+          playerId: this.playerId,
+          gameState: gameStateObj
+        });
+      }, 500);
         }
       }
     });
@@ -179,10 +182,12 @@ export class NetworkManager {
     }
 
     const gameState = gameInstance.toJSON();
+    const gameStateObj = JSON.parse(gameState);
     this.socket.emit(MSG_TYPES.CREATE_TOWN, {
       townName,
+      observerName: gameStateObj.observerName || '',
       playerId: this.playerId,
-      gameState: JSON.parse(gameState)
+      gameState: gameStateObj
     });
   }
 

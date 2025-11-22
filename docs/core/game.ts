@@ -27,6 +27,7 @@ interface GameState {
   timeSpeed: number;
   townName: string; // 城镇名称
   customCharacterNames: string[]; // 自定义居民名称（12个）
+  observerName: string; // 旁观者名称（多人模式显示用）
 }
 
 export class GameEngine {
@@ -54,7 +55,8 @@ export class GameEngine {
       isPlaying: false,
       timeSpeed: 1,
       townName: '猫果镇', // 默认城镇名称
-      customCharacterNames: [] // 自定义居民名称，如果为空则使用默认名称
+      customCharacterNames: [], // 自定义居民名称，如果为空则使用默认名称
+      observerName: '' // 旁观者名称，默认为空
     });
 
     this.loadOrInit();
@@ -271,8 +273,12 @@ export class GameEngine {
       : NAMES;
     
     // 初始化角色
+    const currentTime = this.getAbsoluteTime();
     this.state.chars = characterNames.map(n => {
       const c = new Character(n);
+      // 设置出生时间（根据年龄推算）
+      const ageInDays = c.age * 365;
+      c.birthTime = currentTime - (ageInDays * 1440);
       // 初始化关系网：所有人都是陌生人
       characterNames.forEach(target => {
         if (target !== n) c.relationships[target] = { love: 0, status: 'stranger' };
@@ -385,8 +391,18 @@ export class GameEngine {
       // 检查建筑自动升级（每小时检查一次）
       this.checkAutoUpgrade();
       
-      // TODO: 检查怀孕进度
-      // this.checkPregnancyProgress();
+      // 检查怀孕进度（分娩和堕胎）
+      this.checkPregnancyProgress();
+      
+      // 检查年龄增长和死亡（每天检查一次）
+      if (this.state.gameTime === 0) {
+        this.checkAgeAndDeath();
+      }
+      
+      // 检查人口流失和城镇幸福感（每天检查一次）
+      if (this.state.gameTime === 0) {
+        this.checkPopulationFlow();
+      }
     }
 
     // 1. 角色行动（根据速度调整行动频率）
@@ -783,7 +799,8 @@ export class GameEngine {
       timeSpeed: this.state.timeSpeed,
       lastNewCharDay: this.lastNewCharDay, // 保存上次添加新居民的时间
       townName: this.state.townName, // 保存城镇名称
-      customCharacterNames: this.state.customCharacterNames // 保存自定义居民名称
+      customCharacterNames: this.state.customCharacterNames, // 保存自定义居民名称
+      observerName: this.state.observerName // 保存旁观者名称
     });
   }
 
@@ -854,6 +871,15 @@ export class GameEngine {
       // 恢复城镇名称和自定义居民名称（如果存档中没有，使用默认值）
       this.state.townName = migratedData.townName || '猫果镇';
       this.state.customCharacterNames = migratedData.customCharacterNames || [];
+      
+      // 恢复旁观者名称（如果旧存档没有，随机生成一个）
+      if (migratedData.observerName && migratedData.observerName.trim()) {
+        this.state.observerName = migratedData.observerName;
+      } else {
+        // 随机生成一个旁观者名称
+        this.state.observerName = this.generateRandomName() + rand(1, 999);
+        this.log(`[🎲随机] 为你的存档随机生成了旁观者名称：${this.state.observerName}`, 'system');
+      }
       
       // 恢复新居民添加时间（如果存档中没有，使用总天数）
       this.lastNewCharDay = migratedData.lastNewCharDay || this.state.totalDaysPassed;
@@ -1932,6 +1958,17 @@ export class GameEngine {
         } else {
           // 没有建筑ID：消费进入镇库
           this.state.townMoney += productPrice;
+        }
+        
+        // 药店购买避孕用品：增加避孕用品数量
+        if (venue.id === 'pharmacy' && selectedProduct.id) {
+          if (selectedProduct.id === 'birth_control_pills') {
+            p.contraceptives += 20; // 一盒20个
+          } else if (selectedProduct.id === 'contraceptive_patch') {
+            p.contraceptives += 1; // 一个
+          } else if (selectedProduct.id === 'condoms') {
+            p.contraceptives += 12; // 一盒12个
+          }
         }
         
         // 酒吧喝酒事件：如果是在酒吧喝酒，检查是否喝晕（在收入分配之后）
@@ -3167,6 +3204,267 @@ export class GameEngine {
 
     // 立即返回true表示已尝试（实际结果异步处理）
     return true;
+  }
+
+  // 检查怀孕进度（分娩和堕胎）
+  checkPregnancyProgress() {
+    const currentTime = this.getAbsoluteTime();
+    
+    this.state.chars.forEach(char => {
+      if (!char.pregnant) return;
+      
+      // 检查是否到了预产期
+      if (currentTime >= char.pregnant.dueDate) {
+        // 决定是分娩还是堕胎（基于幸福度和金钱）
+        const wantsAbortion = char.happiness < 40 || (char.money < 1000 && Math.random() < 0.5);
+        
+        if (wantsAbortion) {
+          // 尝试堕胎
+          this.performAbortion(char);
+        } else {
+          // 尝试分娩
+          this.performDelivery(char);
+        }
+      }
+    });
+  }
+
+  // 执行堕胎
+  performAbortion(char: Character) {
+    const hospital = this.state.buildings.find(b => b.id === 'hospital' && b.isBuilt);
+    const cost = 1000;
+    
+    if (hospital && char.money >= cost) {
+      // 在医院堕胎
+      char.money -= cost;
+      hospital.totalRevenue += cost;
+      this.log(`[🏥手术] ${char.name} 在医院进行了堕胎手术，花费 💰${cost}`, 'event');
+    } else {
+      // 在家堕胎（免费但风险）
+      this.log(`[⚠️风险] ${char.name} 在家中自行堕胎...`, 'drama');
+    }
+    
+    // 清除怀孕状态
+    char.pregnant = null;
+  }
+
+  // 执行分娩
+  performDelivery(char: Character) {
+    const hospital = this.state.buildings.find(b => b.id === 'hospital' && b.isBuilt);
+    const cost = 3000;
+    const fatherName = char.pregnant?.father || '未知';
+    
+    if (hospital && char.money >= cost) {
+      // 在医院分娩
+      char.money -= cost;
+      hospital.totalRevenue += cost;
+      this.log(`[🏥手术] ${char.name} 在医院进行了分娩手术，花费 💰${cost}，孩子父亲是 ${fatherName}`, 'event');
+    } else {
+      // 在家分娩（免费但风险）
+      this.log(`[⚠️风险] ${char.name} 在家中分娩，孩子父亲是 ${fatherName}...`, 'drama');
+    }
+    
+    // 创建新角色（孩子）
+    const childName = this.generateRandomName();
+    const child = new Character(childName);
+    child.age = 0; // 新生儿
+    child.maxAge = 100; // 默认最大寿命
+    child.parents = {
+      mother: char.name,
+      father: fatherName
+    };
+    child.birthTime = this.getAbsoluteTime();
+    
+    // 初始化关系
+    this.state.chars.forEach(c => {
+      child.relationships[c.name] = { love: 0, status: 'stranger' };
+      c.relationships[childName] = { love: 0, status: 'stranger' };
+    });
+    
+    // 设置与父母的关系
+    child.relationships[char.name] = { love: 50, status: 'family' };
+    child.relationships[fatherName] = { love: 50, status: 'family' };
+    const father = this.state.chars.find(c => c.name === fatherName);
+    if (father) {
+      father.relationships[childName] = { love: 50, status: 'family' };
+      father.children.push(childName);
+    }
+    char.children.push(childName);
+    
+    // 多人模式：设置所属城镇
+    if (this.isMultiplayerMode && this.currentTownId) {
+      child.homeTown = this.currentTownId;
+      child.currentTown = this.currentTownId;
+    }
+    
+    // 添加到角色列表
+    this.state.chars.push(child);
+    this.log(`[👶出生] ${childName} 出生了！母亲是 ${char.name}，父亲是 ${fatherName}`, 'event');
+    
+    // 清除怀孕状态
+    char.pregnant = null;
+  }
+
+  // 检查年龄增长和死亡
+  checkAgeAndDeath() {
+    const charsToRemove: Character[] = [];
+    
+    this.state.chars.forEach(char => {
+      if (char.isDead) {
+        charsToRemove.push(char);
+        return;
+      }
+      
+      // 每年增长1岁（每365天）
+      if (char.birthTime) {
+        const ageInDays = Math.floor((this.getAbsoluteTime() - char.birthTime) / 1440);
+        char.age = Math.floor(ageInDays / 365);
+      } else {
+        // 如果没有出生时间，每天有1/365的概率增长1岁
+        if (Math.random() < 1 / 365) {
+          char.age++;
+        }
+      }
+      
+      // 检查是否超过最大寿命
+      if (char.age >= char.maxAge) {
+        char.isDead = true;
+        this.log(`[💀死亡] ${char.name} 因年老去世，享年 ${char.age} 岁`, 'event');
+        
+        // 移除工作
+        if (char.job) {
+          const building = this.state.buildings.find(b => b.id === char.job!.buildingId);
+          if (building) {
+            const index = building.staff.indexOf(char.name);
+            if (index !== -1) {
+              building.staff.splice(index, 1);
+            }
+          }
+          char.job = null;
+        }
+        
+        // 移除关系
+        this.state.chars.forEach(c => {
+          if (c.name !== char.name) {
+            delete c.relationships[char.name];
+          }
+        });
+        
+        charsToRemove.push(char);
+      }
+    });
+    
+    // 移除已死亡的角色
+    charsToRemove.forEach(char => {
+      const index = this.state.chars.indexOf(char);
+      if (index !== -1) {
+        this.state.chars.splice(index, 1);
+      }
+    });
+  }
+
+  // 检查人口流失和城镇幸福感
+  checkPopulationFlow() {
+    const population = this.state.chars.filter(c => !c.isDead).length;
+    
+    // 更新城镇幸福感（基于个人幸福感、工作满意度、关系等）
+    this.state.chars.forEach(char => {
+      if (char.isDead) return;
+      
+      // 基础幸福感来自个人幸福感
+      let townHappiness = char.happiness * 0.5;
+      
+      // 工作满意度影响
+      if (char.job) {
+        townHappiness += char.jobSatisfaction * 0.3;
+      }
+      
+      // 关系影响（有伴侣或朋友）
+      if (char.partner) {
+        townHappiness += 10;
+      }
+      const friendsCount = Object.values(char.relationships).filter(r => r.status === 'friend').length;
+      townHappiness += Math.min(20, friendsCount * 2);
+      
+      // 人口过多惩罚（>100时）
+      if (population > 100) {
+        const excess = population - 100;
+        townHappiness -= excess * 0.5; // 每多1人减少0.5幸福感
+      }
+      
+      // 限制在0-100之间
+      char.townHappiness = Math.max(0, Math.min(100, townHappiness));
+      
+      // 如果城镇幸福感很低，有概率离开
+      if (char.townHappiness < 30 && Math.random() < 0.1) { // 10%概率
+        this.leaveTown(char);
+      }
+    });
+  }
+
+  // 居民离开城镇
+  leaveTown(char: Character) {
+    // 如果有工作，辞职
+    if (char.job) {
+      const building = this.state.buildings.find(b => b.id === char.job!.buildingId);
+      if (building) {
+        const index = building.staff.indexOf(char.name);
+        if (index !== -1) {
+          building.staff.splice(index, 1);
+        }
+      }
+      char.job = null;
+    }
+    
+    this.log(`[🚪离开] ${char.name} 因为对城镇生活感到不幸福而离开了城镇`, 'event');
+    
+    // 移除关系
+    this.state.chars.forEach(c => {
+      if (c.name !== char.name) {
+        delete c.relationships[char.name];
+      }
+    });
+    
+    // 从角色列表中移除
+    const index = this.state.chars.indexOf(char);
+    if (index !== -1) {
+      this.state.chars.splice(index, 1);
+    }
+  }
+
+  // 更改旁观者名称
+  changeObserverName() {
+    // 检查是否在浏览器环境中
+    if (typeof window === 'undefined') {
+      this.log('❌ 更改旁观者名称功能仅在浏览器环境中可用！', 'error');
+      return;
+    }
+    
+    const currentName = this.state.observerName || '';
+    const newName = prompt(`请输入新的旁观者名称（当前：${currentName || '未设置'}）：`, currentName);
+    
+    if (newName === null) {
+      // 用户取消了
+      return;
+    }
+    
+    const trimmedName = newName.trim();
+    if (trimmedName === '') {
+      this.log('❌ 旁观者名称不能为空！', 'error');
+      return;
+    }
+    
+    if (trimmedName.length > 20) {
+      this.log('❌ 旁观者名称不能超过20个字符！', 'error');
+      return;
+    }
+    
+    const oldName = this.state.observerName;
+    this.state.observerName = trimmedName;
+    this.log(`[✏️更改] 旁观者名称已从 "${oldName || '未设置'}" 更改为 "${trimmedName}"`, 'event');
+    
+    // 自动保存
+    this.autoSave();
   }
 
   // 创建新角色

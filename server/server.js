@@ -41,7 +41,7 @@ io.on('connection', (socket) => {
 
   // 创建城镇
   socket.on(MSG_TYPES.CREATE_TOWN, (data) => {
-    const { townName, playerId, gameState } = data;
+    const { townName, playerId, gameState, observerName } = data;
     
     // 检查玩家是否已有城镇（恢复城镇）
     let townId = playerToTown.get(playerId);
@@ -54,6 +54,9 @@ io.on('connection', (socket) => {
       town.gameState = gameState;
       town.characters = gameState?.chars || [];
       town.lastUpdate = Date.now();
+      if (observerName) {
+        town.observerName = observerName;
+      }
       isRestore = true;
       console.log(`城镇恢复: ${townName} (${townId})`);
     } else {
@@ -62,6 +65,7 @@ io.on('connection', (socket) => {
       towns.set(townId, {
         townId,
         townName,
+        observerName: observerName || '',
         playerId: playerId,
         socketId: socket.id,
         gameState,
@@ -232,6 +236,7 @@ io.on('connection', (socket) => {
       socket.emit('town-details', {
         townId: town.townId,
         townName: town.townName,
+        observerName: town.observerName || '',
         characters: town.characters || [],
         buildings: town.gameState?.buildings || []
       });
@@ -260,6 +265,7 @@ io.on('connection', (socket) => {
     const townsList = Array.from(towns.values()).map(town => ({
       townId: town.townId,
       townName: town.townName,
+      observerName: town.observerName || '',
       playerId: town.playerId,
       characterCount: town.characters?.length || 0,
       isOnline: town.socketId !== null, // 是否在线

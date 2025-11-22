@@ -72,6 +72,10 @@ const handleShowMultiplayer = () => {
   emit('show-multiplayer');
 };
 
+const handleChangeObserverName = () => {
+  gameInstance.changeObserverName();
+};
+
 const build = (id: string) => {
   // 原始游戏不需要位置参数，只需要建筑ID
   // TODO: 实现建筑建设逻辑
@@ -146,6 +150,7 @@ const toggleDarkMode = inject<() => void>('toggleDarkMode', () => {});
         <button @click="handleShowRelationshipTree" class="btn-relationship" title="查看关系谱">👥 关系谱</button>
         <button @click="handleShowChangelog" class="btn-changelog" title="查看更新日志">📋 更新日志</button>
         <button @click="handleShowMultiplayer" class="btn-multiplayer" title="多人联机">🌐 多人模式</button>
+        <button @click="handleChangeObserverName" class="btn-observer" title="更改旁观者名称">👤 旁观者名</button>
         <button @click="handleReset" class="btn-reset" title="重置游戏到初始状态">🗑 重置</button>
         <input 
           ref="importFileInput"
@@ -519,6 +524,16 @@ button:active {
 
 .btn-multiplayer:hover {
   background: #8e44ad !important;
+}
+
+.btn-observer {
+  background: #e67e22 !important;
+  color: white !important;
+  border-color: #d35400 !important;
+}
+
+.btn-observer:hover {
+  background: #d35400 !important;
 }
 
 </style>

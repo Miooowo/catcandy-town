@@ -72,6 +72,10 @@ export class Character {
   currentTown?: string; // 当前所在城镇ID（多人模式）
   homeTown?: string; // 所属城镇ID（多人模式）
   travelCooldown?: number; // 旅行冷却时间（绝对时间）
+  age: number; // 年龄（岁）
+  maxAge: number; // 最大寿命（岁），默认100
+  isDead: boolean; // 是否已死亡
+  townHappiness: number; // 对城镇的幸福感 (0-100)，影响是否离开城镇
   
   // 选举相关的临时属性（不持久化）
   bribedBy?: string; // 被谁收买
@@ -177,6 +181,10 @@ export class Character {
     this.children = [];
     this.parents = null;
     this.birthTime = null;
+    this.age = rand(18, 40); // 初始年龄18-40岁随机
+    this.maxAge = 100; // 默认最大寿命100岁
+    this.isDead = false; // 初始未死亡
+    this.townHappiness = 60; // 初始城镇幸福感60
   }
 
   hasTrait(traitId: string): boolean {

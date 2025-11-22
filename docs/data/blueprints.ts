@@ -65,10 +65,19 @@ export const BUILDINGS_BLUEPRINT: BuildingBlueprint[] = [
   },
   { 
     id: "hospital", name: "🏥 医院", cost: 1500, desc: "分娩或堕胎", effect: "medical",
-    price: 0, open: 0, close: 24, jobs: ["医生", "护士"], products: [] 
+    price: 0, open: 0, close: 24, jobs: ["医生", "护士"], 
+    products: [
+      { id: "abortion", name: "堕胎手术", price: 1000 },
+      { id: "delivery", name: "分娩手术", price: 3000 }
+    ]
   },
   { 
     id: "pharmacy", name: "💊 药店", cost: 800, desc: "购买避孕用品", effect: "contraceptive",
-    price: 0, open: 8, close: 22, jobs: ["药剂师"], products: [] 
+    price: 0, open: 8, close: 22, jobs: ["药剂师"],
+    products: [
+      { id: "birth_control_pills", name: "避孕药", price: 103 }, // 一盒20个
+      { id: "contraceptive_patch", name: "避孕贴", price: 75 }, // 一个
+      { id: "condoms", name: "避孕套", price: 40 } // 一盒12个
+    ]
   }
 ];

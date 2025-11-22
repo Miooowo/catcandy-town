@@ -30,6 +30,7 @@ const showTownDetails = ref(false);
 const selectedTownDetails = ref<{
   townId: string;
   townName: string;
+  observerName?: string;
   characters: any[];
   buildings: any[];
 } | null>(null);
@@ -111,6 +112,7 @@ const viewTownDetails = (town: TownInfo) => {
   selectedTownDetails.value = {
     townId: town.townId,
     townName: town.townName,
+    observerName: town.observerName,
     characters: [],
     buildings: []
   };
@@ -124,6 +126,14 @@ const viewTownDetails = (town: TownInfo) => {
 const closeTownDetails = () => {
   showTownDetails.value = false;
   selectedTownDetails.value = null;
+};
+
+// 获取显示用的城镇名称（格式：旁观者名 的 城镇名）
+const getDisplayTownName = (townName: string, observerName?: string): string => {
+  if (observerName && observerName.trim()) {
+    return `${observerName} 的 ${townName}`;
+  }
+  return townName;
 };
 
 // 断开连接
@@ -220,7 +230,7 @@ onUnmounted(() => {
         <div v-if="currentTownId" class="section current-town">
           <h4>我的城镇</h4>
           <div class="town-info">
-            <div class="town-name">🏘️ {{ townName }}</div>
+            <div class="town-name">🏘️ {{ getDisplayTownName(townName, gameInstance.state.observerName) }}</div>
             <div class="town-id">ID: {{ currentTownId }}</div>
             <div class="status-active">🟢 在线</div>
           </div>
@@ -240,7 +250,7 @@ onUnmounted(() => {
               @click="viewTownDetails(town)"
             >
               <div class="town-item-header">
-                <span class="town-item-name">🏘️ {{ town.townName }}</span>
+                <span class="town-item-name">🏘️ {{ getDisplayTownName(town.townName, town.observerName) }}</span>
                 <span v-if="town.isOnline === false" class="offline-badge">离线</span>
               </div>
               <div class="town-item-info">
@@ -267,7 +277,7 @@ onUnmounted(() => {
         <div v-if="showTownDetails && selectedTownDetails" class="modal-overlay town-details-overlay" @click.self="closeTownDetails">
           <div class="town-details-modal">
             <div class="town-details-header">
-              <h3>🏘️ {{ selectedTownDetails.townName }}</h3>
+              <h3>🏘️ {{ getDisplayTownName(selectedTownDetails.townName, selectedTownDetails.observerName) }}</h3>
               <button class="modal-close" @click="closeTownDetails">×</button>
             </div>
             <div class="town-details-content">
