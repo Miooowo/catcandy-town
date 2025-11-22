@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm install && npx vitepress build docs",
+  "outputDirectory": "docs/.vitepress/dist",
+  "installCommand": "npm install",
+  "framework": null,
+  "nodeVersion": "18.x",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+
