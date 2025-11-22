@@ -7,9 +7,21 @@ export interface ChangelogEntry {
   fixed?: string[];
 }
 
-export const GAME_VERSION = '1.2';
+export const GAME_VERSION = '1.2.1';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.2.1',
+    date: '2025/11/22 7:00',
+    added: [
+      '查看其他城镇居民信息：在联机列表中点击其他城镇可以查看该城镇的所有居民信息',
+      '居民详情显示：显示居民的金钱、幸福度、当前行动和所在城镇'
+    ],
+    fixed: [
+      '修复断开连接后重新连接时自己不在房间列表的问题',
+      '优化城镇恢复机制：重新连接时自动恢复之前的城镇'
+    ]
+  },
   {
     version: '1.2',
     date: '2025/11/22',

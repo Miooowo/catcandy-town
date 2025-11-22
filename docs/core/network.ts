@@ -20,6 +20,7 @@ export interface TownInfo {
   playerId: string;
   characterCount: number;
   buildings: Array<{ id: string; name: string }>;
+  isOnline?: boolean; // 是否在线
 }
 
 export class NetworkManager {
@@ -70,6 +71,22 @@ export class NetworkManager {
       
       // 请求城镇列表
       this.requestTowns();
+      
+      // 如果有保存的城镇ID且游戏处于多人模式，尝试恢复城镇
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        const savedTownId = localStorage.getItem('multiplayer_townId');
+        if (savedTownId && gameInstance.state.isMultiplayerMode) {
+          // 延迟一下，确保socket完全连接
+          setTimeout(() => {
+            const gameState = gameInstance.toJSON();
+            this.socket?.emit(MSG_TYPES.CREATE_TOWN, {
+              townName: gameInstance.state.townName,
+              playerId: this.playerId,
+              gameState: JSON.parse(gameState)
+            });
+          }, 500);
+        }
+      }
     });
 
     this.socket.on('disconnect', () => {
@@ -83,9 +100,21 @@ export class NetworkManager {
     });
 
     // 城镇创建成功
-    this.socket.on('town-created', (data: { townId: string; townName: string }) => {
+    this.socket.on('town-created', (data: { townId: string; townName: string; isRestore?: boolean }) => {
       this.currentTownId = data.townId;
-      console.log('城镇创建成功:', data.townName);
+      // 保存城镇ID到localStorage
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        localStorage.setItem('multiplayer_townId', data.townId);
+      }
+      // 如果恢复城镇，确保启用多人模式
+      if (data.isRestore && !gameInstance.state.isMultiplayerMode) {
+        gameInstance.enableMultiplayerMode(data.townId);
+      }
+      if (data.isRestore) {
+        console.log('城镇恢复成功:', data.townName);
+      } else {
+        console.log('城镇创建成功:', data.townName);
+      }
     });
 
     // 收到城镇列表
@@ -142,7 +171,7 @@ export class NetworkManager {
     });
   }
 
-  // 创建城镇
+  // 创建城镇（或恢复城镇）
   createTown(townName: string) {
     if (!this.socket || !this.isConnected) {
       console.error('未连接到服务器');
@@ -248,6 +277,25 @@ export class NetworkManager {
   // 获取当前城镇ID
   getCurrentTownId(): string | null {
     return this.currentTownId;
+  }
+
+  // 请求城镇详情（包括居民信息）
+  requestTownDetails(townId: string, callback: (details: any) => void) {
+    if (!this.socket || !this.isConnected) {
+      console.error('未连接到服务器');
+      return;
+    }
+
+    // 设置一次性监听器
+    const handler = (data: any) => {
+      if (data.townId === townId) {
+        callback(data);
+        this.socket?.off('town-details', handler);
+      }
+    };
+
+    this.socket.on('town-details', handler);
+    this.socket.emit('request-town-details', { townId });
   }
 
   // 断开连接

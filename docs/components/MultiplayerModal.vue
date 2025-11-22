@@ -26,6 +26,13 @@ const isConnected = ref(false);
 const currentTownId = ref<string | null>(null);
 const towns = ref<TownInfo[]>([]);
 const townName = ref(gameInstance.state.townName || '猫果镇');
+const showTownDetails = ref(false);
+const selectedTownDetails = ref<{
+  townId: string;
+  townName: string;
+  characters: any[];
+  buildings: any[];
+} | null>(null);
 
 const close = () => {
   emit('close');
@@ -91,6 +98,32 @@ const createTown = () => {
 // 更新城镇列表
 const updateTownsList = () => {
   towns.value = networkManager.getTowns();
+};
+
+// 查看城镇详情（居民信息）
+const viewTownDetails = (town: TownInfo) => {
+  if (town.townId === currentTownId.value) {
+    // 如果是当前城镇，不需要查看（已经在游戏界面显示了）
+    return;
+  }
+  
+  showTownDetails.value = true;
+  selectedTownDetails.value = {
+    townId: town.townId,
+    townName: town.townName,
+    characters: [],
+    buildings: []
+  };
+  
+  networkManager.requestTownDetails(town.townId, (details) => {
+    selectedTownDetails.value = details;
+  });
+};
+
+// 关闭城镇详情
+const closeTownDetails = () => {
+  showTownDetails.value = false;
+  selectedTownDetails.value = null;
 };
 
 // 断开连接
@@ -195,20 +228,20 @@ onUnmounted(() => {
 
         <!-- 其他城镇列表 -->
         <div v-if="isConnected" class="section">
-          <h4>其他城镇 ({{ towns.length }})</h4>
-          <div v-if="towns.length === 0" class="no-towns">
+          <h4>其他城镇 ({{ towns.filter(t => t.townId !== currentTownId).length }})</h4>
+          <div v-if="towns.filter(t => t.townId !== currentTownId).length === 0" class="no-towns">
             暂无其他城镇
           </div>
           <div v-else class="towns-list">
             <div 
-              v-for="town in towns" 
+              v-for="town in towns.filter(t => t.townId !== currentTownId)" 
               :key="town.townId"
               class="town-item"
-              :class="{ 'current': town.townId === currentTownId }"
+              @click="viewTownDetails(town)"
             >
               <div class="town-item-header">
                 <span class="town-item-name">🏘️ {{ town.townName }}</span>
-                <span v-if="town.townId === currentTownId" class="current-badge">当前</span>
+                <span v-if="town.isOnline === false" class="offline-badge">离线</span>
               </div>
               <div class="town-item-info">
                 <span>👥 {{ town.characterCount }} 居民</span>
@@ -222,6 +255,60 @@ onUnmounted(() => {
                 >
                   {{ building.name }}
                 </span>
+              </div>
+              <div class="town-item-action">
+                <button class="btn-view-details">👁️ 查看居民信息</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 城镇详情模态框 -->
+        <div v-if="showTownDetails && selectedTownDetails" class="modal-overlay town-details-overlay" @click.self="closeTownDetails">
+          <div class="town-details-modal">
+            <div class="town-details-header">
+              <h3>🏘️ {{ selectedTownDetails.townName }}</h3>
+              <button class="modal-close" @click="closeTownDetails">×</button>
+            </div>
+            <div class="town-details-content">
+              <div class="details-section">
+                <h4>👥 居民列表 ({{ selectedTownDetails.characters.length }})</h4>
+                <div v-if="selectedTownDetails.characters.length === 0" class="no-characters">
+                  暂无居民信息
+                </div>
+                <div v-else class="characters-list">
+                  <div 
+                    v-for="char in selectedTownDetails.characters" 
+                    :key="char.name"
+                    class="character-item"
+                  >
+                    <div class="character-name">👤 {{ char.name }}</div>
+                    <div class="character-info">
+                      <span>💰 {{ char.money || 0 }}</span>
+                      <span>😊 {{ char.happiness || 0 }}</span>
+                      <span v-if="char.currentAction">📝 {{ char.currentAction }}</span>
+                    </div>
+                    <div v-if="char.currentTown && char.currentTown !== selectedTownDetails.townId" class="character-travel">
+                      🚶 当前在: {{ char.currentTown }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="details-section">
+                <h4>🏗️ 建筑列表 ({{ selectedTownDetails.buildings.filter(b => b.isBuilt).length }})</h4>
+                <div v-if="selectedTownDetails.buildings.filter(b => b.isBuilt).length === 0" class="no-buildings">
+                  暂无建筑
+                </div>
+                <div v-else class="buildings-list">
+                  <div 
+                    v-for="building in selectedTownDetails.buildings.filter(b => b.isBuilt)" 
+                    :key="building.id"
+                    class="building-item"
+                  >
+                    <span class="building-name">{{ building.name }}</span>
+                    <span v-if="building.totalRevenue" class="building-revenue">💰 {{ building.totalRevenue }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -538,6 +625,7 @@ button {
   border: 2px solid #ddd;
   border-radius: 8px;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .town-item:hover {
@@ -583,6 +671,200 @@ button {
   padding: 2px 8px;
   border-radius: 12px;
   font-size: 0.75rem;
+}
+
+.offline-badge {
+  background: #999;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+}
+
+.town-item-action {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+
+:global(.dark-mode) .town-item-action {
+  border-top-color: #444;
+}
+
+.btn-view-details {
+  width: 100%;
+  padding: 6px 12px;
+  background: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn-view-details:hover {
+  background: #2980b9;
+}
+
+.town-details-overlay {
+  z-index: 2000;
+}
+
+.town-details-modal {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 700px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark-mode) .town-details-modal {
+  background: #2d2d2d;
+  color: #e5e5e5;
+}
+
+.town-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 3px solid #4a90e2;
+}
+
+.town-details-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+:global(.dark-mode) .town-details-header h3 {
+  color: #e5e5e5;
+}
+
+.town-details-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.details-section {
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+:global(.dark-mode) .details-section {
+  background: #1a1a1a;
+}
+
+.details-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 1rem;
+  color: #333;
+}
+
+:global(.dark-mode) .details-section h4 {
+  color: #e5e5e5;
+}
+
+.no-characters,
+.no-buildings {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+:global(.dark-mode) .no-characters,
+:global(.dark-mode) .no-buildings {
+  color: #666;
+}
+
+.characters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.character-item {
+  padding: 10px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+:global(.dark-mode) .character-item {
+  background: #2d2d2d;
+  border-color: #555;
+}
+
+.character-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+:global(.dark-mode) .character-name {
+  color: #e5e5e5;
+}
+
+.character-info {
+  display: flex;
+  gap: 15px;
+  font-size: 0.85rem;
+  color: #666;
+  flex-wrap: wrap;
+}
+
+:global(.dark-mode) .character-info {
+  color: #bbb;
+}
+
+.character-travel {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #4a90e2;
+  font-style: italic;
+}
+
+.buildings-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.building-item {
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+:global(.dark-mode) .building-item {
+  background: #2d2d2d;
+  border-color: #555;
+}
+
+.building-name {
+  font-weight: 500;
+  color: #333;
+}
+
+:global(.dark-mode) .building-name {
+  color: #e5e5e5;
+}
+
+.building-revenue {
+  font-size: 0.85rem;
+  color: #27ae60;
 }
 
 .town-item-info {

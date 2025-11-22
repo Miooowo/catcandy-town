@@ -19,7 +19,9 @@ const io = new Server(server, {
 const rooms = new Map();
 
 // 城镇管理：存储所有城镇的状态
-const towns = new Map(); // townId -> { townName, playerId, gameState }
+const towns = new Map(); // townId -> { townName, playerId, socketId, gameState }
+// 玩家ID到城镇ID的映射（用于恢复城镇）
+const playerToTown = new Map(); // playerId -> townId
 
 // 消息类型常量
 const MSG_TYPES = {
@@ -40,24 +42,41 @@ io.on('connection', (socket) => {
   // 创建城镇
   socket.on(MSG_TYPES.CREATE_TOWN, (data) => {
     const { townName, playerId, gameState } = data;
-    const townId = `town_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    towns.set(townId, {
-      townId,
-      townName,
-      playerId: socket.id,
-      gameState,
-      lastUpdate: Date.now(),
-      characters: gameState?.chars || []
-    });
+    // 检查玩家是否已有城镇（恢复城镇）
+    let townId = playerToTown.get(playerId);
+    let isRestore = false;
+    
+    if (townId && towns.has(townId)) {
+      // 恢复现有城镇
+      const town = towns.get(townId);
+      town.socketId = socket.id;
+      town.gameState = gameState;
+      town.characters = gameState?.chars || [];
+      town.lastUpdate = Date.now();
+      isRestore = true;
+      console.log(`城镇恢复: ${townName} (${townId})`);
+    } else {
+      // 创建新城镇
+      townId = `town_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      towns.set(townId, {
+        townId,
+        townName,
+        playerId: playerId,
+        socketId: socket.id,
+        gameState,
+        lastUpdate: Date.now(),
+        characters: gameState?.chars || []
+      });
+      playerToTown.set(playerId, townId);
+      console.log(`城镇创建: ${townName} (${townId})`);
+    }
 
     socket.join(townId);
-    socket.emit('town-created', { townId, townName });
+    socket.emit('town-created', { townId, townName, isRestore });
     
     // 广播城镇列表更新
     broadcastTownsList();
-    
-    console.log(`城镇创建: ${townName} (${townId})`);
   });
 
   // 加入游戏（获取所有城镇列表）
@@ -75,7 +94,11 @@ io.on('connection', (socket) => {
     const { townId, gameState } = data;
     const town = towns.get(townId);
     
-    if (town && town.playerId === socket.id) {
+    if (town && (town.playerId === socket.id || town.socketId === socket.id)) {
+      // 更新socketId（如果玩家重新连接）
+      if (town.playerId && !town.socketId) {
+        town.socketId = socket.id;
+      }
       town.gameState = gameState;
       town.characters = gameState?.chars || [];
       town.lastUpdate = Date.now();
@@ -124,7 +147,7 @@ io.on('connection', (socket) => {
         character.currentAction = `在 ${toTown.townName} 旅行`;
         
         // 通知目标城镇
-        const toTownSocket = io.sockets.sockets.get(toTown.playerId);
+        const toTownSocket = toTown.socketId ? io.sockets.sockets.get(toTown.socketId) : null;
         if (toTownSocket) {
           toTownSocket.emit('character-arrived', {
             character,
@@ -134,7 +157,7 @@ io.on('connection', (socket) => {
         }
         
         // 通知源城镇
-        const fromTownSocket = io.sockets.sockets.get(fromTown.playerId);
+        const fromTownSocket = fromTown.socketId ? io.sockets.sockets.get(fromTown.socketId) : null;
         if (fromTownSocket) {
           fromTownSocket.emit('character-left', {
             characterName,
@@ -177,7 +200,7 @@ io.on('connection', (socket) => {
     }
 
     // 通知目标城镇的玩家
-    const toTownSocket = io.sockets.sockets.get(toTown.playerId);
+    const toTownSocket = toTown.socketId ? io.sockets.sockets.get(toTown.socketId) : null;
     if (toTownSocket) {
       toTownSocket.emit('cross-town-revenue', {
         characterName,
@@ -189,7 +212,7 @@ io.on('connection', (socket) => {
     }
 
     // 通知源城镇的玩家
-    const fromTownSocket = io.sockets.sockets.get(fromTown.playerId);
+    const fromTownSocket = fromTown.socketId ? io.sockets.sockets.get(fromTown.socketId) : null;
     if (fromTownSocket) {
       fromTownSocket.emit('character-consumed', {
         characterName,
@@ -200,16 +223,32 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 请求城镇详情（包括居民信息）
+  socket.on('request-town-details', (data) => {
+    const { townId } = data;
+    const town = towns.get(townId);
+    
+    if (town) {
+      socket.emit('town-details', {
+        townId: town.townId,
+        townName: town.townName,
+        characters: town.characters || [],
+        buildings: town.gameState?.buildings || []
+      });
+    } else {
+      socket.emit('error', { message: '城镇不存在' });
+    }
+  });
+
   // 断开连接
   socket.on('disconnect', () => {
     console.log('玩家断开:', socket.id);
     
-    // 清理城镇（如果玩家是城镇主人）
+    // 只清除socketId，保留城镇数据（允许重新连接）
     for (const [townId, town] of towns.entries()) {
-      if (town.playerId === socket.id) {
-        towns.delete(townId);
-        io.emit('town-removed', { townId });
-        console.log(`城镇删除: ${town.townName} (${townId})`);
+      if (town.socketId === socket.id) {
+        town.socketId = null; // 清除socketId，但保留城镇数据
+        console.log(`城镇离线: ${town.townName} (${townId})，等待重新连接`);
       }
     }
     
@@ -223,6 +262,7 @@ io.on('connection', (socket) => {
       townName: town.townName,
       playerId: town.playerId,
       characterCount: town.characters?.length || 0,
+      isOnline: town.socketId !== null, // 是否在线
       buildings: town.gameState?.buildings?.filter(b => b.isBuilt).map(b => ({
         id: b.id,
         name: b.name
